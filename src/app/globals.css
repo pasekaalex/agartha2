@@ -193,3 +193,52 @@ body {
     opacity: 0;
   }
 }
+
+/* GAME EXPLOSION */
+@keyframes explosionRing {
+  0% {
+    width: 8px;
+    height: 8px;
+    opacity: 1;
+    border-width: 3px;
+  }
+  100% {
+    width: 100px;
+    height: 100px;
+    opacity: 0;
+    border-width: 1px;
+  }
+}
+
+@keyframes explosionParticle0 {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(calc(-50% + 40px), -50%); }
+}
+@keyframes explosionParticle1 {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(calc(-50% + 28px), calc(-50% + 28px)); }
+}
+@keyframes explosionParticle2 {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% + 40px)); }
+}
+@keyframes explosionParticle3 {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(calc(-50% - 28px), calc(-50% + 28px)); }
+}
+@keyframes explosionParticle4 {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(calc(-50% - 40px), -50%); }
+}
+@keyframes explosionParticle5 {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(calc(-50% - 28px), calc(-50% - 28px)); }
+}
+@keyframes explosionParticle6 {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, calc(-50% - 40px)); }
+}
+@keyframes explosionParticle7 {
+  0% { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(calc(-50% + 28px), calc(-50% - 28px)); }
+}

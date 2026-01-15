@@ -30,10 +30,18 @@ export default function Home() {
   const [gameScore, setGameScore] = useState(0);
   const [gameTargets, setGameTargets] = useState<{ id: number; x: number; y: number; hit: boolean }[]>([]);
   const [isShooting, setIsShooting] = useState(false);
+  const [gameLives, setGameLives] = useState(3);
+  const [gameCombo, setGameCombo] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [gameLightning, setGameLightning] = useState<{ x: number; y: number } | null>(null);
+  const [gameExplosions, setGameExplosions] = useState<{ id: number; x: number; y: number }[]>([]);
+  const [gameHighScore, setGameHighScore] = useState(0);
   const trailId = useRef(0);
   const particleId = useRef(0);
   const targetId = useRef(0);
+  const explosionId = useRef(0);
   const gameInterval = useRef<NodeJS.Timeout | null>(null);
+  const gameTime = useRef(0);
   const audioContext = useRef<AudioContext | null>(null);
   const droneOsc = useRef<OscillatorNode | null>(null);
   const droneGain = useRef<GainNode | null>(null);
@@ -375,69 +383,168 @@ export default function Home() {
     setGameOpen(true);
     setGameScore(0);
     setGameTargets([]);
+    setGameLives(3);
+    setGameCombo(0);
+    setGameOver(false);
+    setGameExplosions([]);
+    gameTime.current = 0;
 
-    // Spawn targets every 1.5 seconds
-    gameInterval.current = setInterval(() => {
+    // Spawn targets - starts at 2s, speeds up over time
+    const spawnTarget = () => {
+      if (gameInterval.current) clearTimeout(gameInterval.current);
+
       targetId.current += 1;
       setGameTargets(prev => [...prev, {
         id: targetId.current,
-        x: Math.random() * 80 + 10, // 10-90% of screen width
+        x: Math.random() * 70 + 15, // 15-85% of screen width
         y: -5,
         hit: false,
       }]);
-    }, 1500);
+
+      gameTime.current += 1;
+      // Spawn rate decreases from 2000ms to 800ms over time
+      const spawnDelay = Math.max(800, 2000 - gameTime.current * 30);
+      gameInterval.current = setTimeout(spawnTarget, spawnDelay);
+    };
+
+    gameInterval.current = setTimeout(spawnTarget, 1500);
   };
 
   const stopGame = () => {
     setGameOpen(false);
+    setGameOver(false);
     if (gameInterval.current) {
-      clearInterval(gameInterval.current);
+      clearTimeout(gameInterval.current);
     }
   };
 
+  const playHitSound = useCallback(() => {
+    if (!audioContext.current || !audioEnabled) return;
+
+    const osc = audioContext.current.createOscillator();
+    const gain = audioContext.current.createGain();
+
+    osc.type = "sawtooth";
+    osc.frequency.setValueAtTime(800, audioContext.current.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(200, audioContext.current.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.15, audioContext.current.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioContext.current.currentTime + 0.15);
+
+    osc.connect(gain);
+    gain.connect(audioContext.current.destination);
+    osc.start();
+    osc.stop(audioContext.current.currentTime + 0.15);
+  }, [audioEnabled]);
+
+  const playMissSound = useCallback(() => {
+    if (!audioContext.current || !audioEnabled) return;
+
+    const osc = audioContext.current.createOscillator();
+    const gain = audioContext.current.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(200, audioContext.current.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, audioContext.current.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.1, audioContext.current.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioContext.current.currentTime + 0.3);
+
+    osc.connect(gain);
+    gain.connect(audioContext.current.destination);
+    osc.start();
+    osc.stop(audioContext.current.currentTime + 0.3);
+  }, [audioEnabled]);
+
   const shootTarget = (clickX: number, clickY: number) => {
+    if (gameOver) return;
+
     setIsShooting(true);
+    setGameLightning({ x: clickX, y: clickY });
     playGlitchSound();
 
-    setTimeout(() => setIsShooting(false), 200);
+    setTimeout(() => {
+      setIsShooting(false);
+      setGameLightning(null);
+    }, 200);
 
-    // Check if any target was hit (expanded hitbox)
+    // Check if any target was hit
+    let hitAny = false;
     setGameTargets(prev => {
-      let scoreAdded = false;
       return prev.map(target => {
-        if (target.hit || scoreAdded) return target;
+        if (target.hit || hitAny) return target;
 
         const distance = Math.sqrt(
           Math.pow(target.x - clickX, 2) + Math.pow(target.y - clickY, 2)
         );
 
-        // Larger hit area (20 units)
-        if (distance < 20) {
-          if (!scoreAdded) {
-            setGameScore(s => s + 1);
-            scoreAdded = true;
-          }
+        // Hit detection
+        if (distance < 18) {
+          hitAny = true;
+          // Add explosion at target location
+          explosionId.current += 1;
+          setGameExplosions(exp => [...exp, { id: explosionId.current, x: target.x, y: target.y }]);
+          setTimeout(() => {
+            setGameExplosions(exp => exp.filter(e => e.id !== explosionId.current));
+          }, 500);
+
+          // Score with combo bonus
+          setGameCombo(c => {
+            const newCombo = c + 1;
+            const bonus = Math.floor(newCombo / 3); // +1 point every 3 hits
+            setGameScore(s => s + 1 + bonus);
+            return newCombo;
+          });
+
+          playHitSound();
           return { ...target, hit: true };
         }
         return target;
       });
     });
+
+    // Reset combo on miss
+    if (!hitAny) {
+      setGameCombo(0);
+    }
   };
 
   // Animate targets falling
   useEffect(() => {
-    if (!gameOpen) return;
+    if (!gameOpen || gameOver) return;
 
     const animInterval = setInterval(() => {
       setGameTargets(prev => {
-        const updated = prev.map(t => ({ ...t, y: t.y + 0.8 }));
+        const updated = prev.map(t => {
+          // Speed increases slightly over time
+          const speed = 0.6 + Math.min(gameTime.current * 0.02, 0.6);
+          return { ...t, y: t.y + speed };
+        });
+
+        // Check for missed targets (fell off screen)
+        const missed = updated.filter(t => t.y >= 100 && !t.hit);
+        if (missed.length > 0) {
+          setGameLives(l => {
+            const newLives = l - missed.length;
+            if (newLives <= 0) {
+              // Game over
+              setGameOver(true);
+              setGameHighScore(h => Math.max(h, gameScore));
+              if (gameInterval.current) clearTimeout(gameInterval.current);
+              playMissSound();
+            } else {
+              playMissSound();
+            }
+            return Math.max(0, newLives);
+          });
+          setGameCombo(0); // Reset combo on miss
+        }
+
         // Remove targets that fell off screen or were hit
-        return updated.filter(t => t.y < 110 && !t.hit);
+        return updated.filter(t => t.y < 105 && !t.hit);
       });
     }, 50);
 
     return () => clearInterval(animInterval);
-  }, [gameOpen]);
+  }, [gameOpen, gameOver, gameScore, playMissSound]);
 
   const easterEggActive = easterEgg >= 10;
 
@@ -841,22 +948,45 @@ export default function Home() {
         <div className="fixed inset-0 bg-black z-[100] flex flex-col cursor-crosshair">
           {/* Game HUD */}
           <div className="flex justify-between items-center p-4 text-green-400 font-mono">
-            <div className="text-xl">SCORE: {gameScore}</div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                stopGame();
-              }}
-              className="text-zinc-500 hover:text-white text-sm px-3 py-1 border border-zinc-800 hover:border-zinc-600 cursor-pointer"
-            >
-              [exit]
-            </button>
+            <div className="flex items-center gap-6">
+              <div className="text-xl">SCORE: {gameScore}</div>
+              {gameCombo >= 3 && (
+                <div className="text-yellow-400 animate-pulse text-sm">
+                  COMBO x{gameCombo} (+{Math.floor(gameCombo / 3)})
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Lives */}
+              <div className="flex gap-1">
+                {[...Array(3)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                      i < gameLives
+                        ? "bg-red-500 shadow-[0_0_8px_rgba(255,0,0,0.8)]"
+                        : "bg-zinc-800"
+                    }`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stopGame();
+                }}
+                className="text-zinc-500 hover:text-white text-sm px-3 py-1 border border-zinc-800 hover:border-zinc-600 cursor-pointer"
+              >
+                [exit]
+              </button>
+            </div>
           </div>
 
           {/* Game Area */}
           <div
             className="flex-1 relative overflow-hidden cursor-crosshair"
             onClick={(e) => {
+              if (gameOver) return;
               const rect = e.currentTarget.getBoundingClientRect();
               const x = ((e.clientX - rect.left) / rect.width) * 100;
               const y = ((e.clientY - rect.top) / rect.height) * 100;
@@ -867,12 +997,13 @@ export default function Home() {
             {gameTargets.map(target => (
               <div
                 key={`target-${target.id}`}
-                className="absolute transition-opacity duration-200"
+                className="absolute transition-all duration-200"
                 style={{
                   left: `${target.x}%`,
                   top: `${target.y}%`,
                   transform: "translate(-50%, -50%)",
                   opacity: target.hit ? 0 : 1,
+                  scale: target.hit ? "1.5" : "1",
                 }}
               >
                 <Image
@@ -880,41 +1011,174 @@ export default function Home() {
                   alt=""
                   width={40}
                   height={40}
-                  className={`${target.hit ? "blur-sm" : ""}`}
+                  className={`${target.hit ? "blur-sm" : ""} drop-shadow-[0_0_8px_rgba(255,100,0,0.5)]`}
                 />
               </div>
             ))}
 
+            {/* Explosion Effects */}
+            {gameExplosions.map(exp => (
+              <div
+                key={`explosion-${exp.id}`}
+                className="absolute pointer-events-none"
+                style={{
+                  left: `${exp.x}%`,
+                  top: `${exp.y}%`,
+                  transform: "translate(-50%, -50%)",
+                }}
+              >
+                {/* Explosion ring */}
+                <div
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-red-500"
+                  style={{
+                    animation: "explosionRing 0.4s ease-out forwards",
+                    boxShadow: "0 0 20px rgba(255,0,0,0.8), 0 0 40px rgba(255,215,0,0.4)",
+                  }}
+                />
+                {/* Explosion particles */}
+                {[...Array(8)].map((_, i) => (
+                  <div
+                    key={i}
+                    className="absolute w-2 h-2 bg-yellow-400 rounded-full"
+                    style={{
+                      animation: `explosionParticle${i} 0.35s ease-out forwards`,
+                      boxShadow: "0 0 6px rgba(255,215,0,0.8)",
+                    }}
+                  />
+                ))}
+              </div>
+            ))}
+
+            {/* Lightning bolt from player to click */}
+            {gameLightning && (
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                {(() => {
+                  const startX = 50;
+                  const startY = 92;
+                  const endX = gameLightning.x;
+                  const endY = gameLightning.y;
+                  const segments = 6;
+                  const points: { x: number; y: number }[] = [{ x: startX, y: startY }];
+
+                  for (let j = 1; j < segments; j++) {
+                    const t = j / segments;
+                    const baseX = startX + (endX - startX) * t;
+                    const baseY = startY + (endY - startY) * t;
+                    const jitter = (1 - t) * 8;
+                    points.push({
+                      x: baseX + (Math.random() - 0.5) * jitter,
+                      y: baseY + (Math.random() - 0.5) * jitter,
+                    });
+                  }
+                  points.push({ x: endX, y: endY });
+
+                  const pathData = points.map((p, idx) =>
+                    `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                  ).join(' ');
+
+                  return (
+                    <>
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke="#ff0000"
+                        strokeWidth={0.8}
+                        strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
+                        style={{
+                          filter: "drop-shadow(0 0 4px #ff0000) drop-shadow(0 0 8px #ffd700)",
+                        }}
+                      />
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke="#ffd700"
+                        strokeWidth={0.4}
+                        strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
+                      />
+                    </>
+                  );
+                })()}
+              </svg>
+            )}
+
             {/* Player Character */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-              <div className="relative w-32 h-32 md:w-40 md:h-40">
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2">
+              <div className={`relative w-28 h-28 md:w-36 md:h-36 transition-transform duration-100 ${isShooting ? "scale-110" : ""}`}>
                 <Image
                   src={isShooting ? "/ep2.jpg" : "/ep1.jpg"}
                   alt=""
                   fill
-                  className="object-contain"
+                  className={`object-contain ${isShooting ? "drop-shadow-[0_0_20px_rgba(255,0,0,0.8)]" : ""}`}
                   unoptimized
                 />
               </div>
             </div>
 
-            {/* Shooting Effect */}
+            {/* Shooting Flash Effect */}
             {isShooting && (
               <div className="absolute inset-0 pointer-events-none">
                 <div
                   className="absolute inset-0"
                   style={{
-                    background: "radial-gradient(circle at center, rgba(255,0,0,0.3) 0%, transparent 50%)",
+                    background: `radial-gradient(circle at 50% 85%, rgba(255,0,0,0.4) 0%, transparent 40%)`,
                     animation: "flash 0.2s ease-out",
                   }}
                 />
+              </div>
+            )}
+
+            {/* Game Over Screen */}
+            {gameOver && (
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
+                <div className="text-red-500 text-4xl md:text-6xl font-bold mb-4 glitch" data-text="GAME OVER">
+                  GAME OVER
+                </div>
+                <div className="text-green-400 text-2xl md:text-3xl mb-2">
+                  SCORE: {gameScore}
+                </div>
+                {gameHighScore > 0 && gameScore >= gameHighScore && (
+                  <div className="text-yellow-400 text-lg mb-4 animate-pulse">
+                    NEW HIGH SCORE!
+                  </div>
+                )}
+                {gameHighScore > 0 && gameScore < gameHighScore && (
+                  <div className="text-zinc-500 text-sm mb-4">
+                    HIGH SCORE: {gameHighScore}
+                  </div>
+                )}
+                <div className="flex gap-4 mt-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startGame();
+                    }}
+                    className="text-green-400 hover:text-white text-lg px-6 py-2 border border-green-800 hover:border-green-400 transition-colors cursor-pointer"
+                  >
+                    [RETRY]
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stopGame();
+                    }}
+                    className="text-zinc-500 hover:text-white text-lg px-6 py-2 border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                  >
+                    [EXIT]
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
           {/* Game Instructions */}
           <div className="p-4 text-center text-zinc-600 text-xs font-mono border-t border-zinc-900">
-            {isMobile ? "TAP" : "CLICK"} TO SHOOT LIGHTNING AT FALLING TARGETS
+            {gameOver ? "CLICK RETRY TO PLAY AGAIN" : `${isMobile ? "TAP" : "CLICK"} TO SHOOT • DON'T LET TARGETS FALL`}
           </div>
         </div>
       )}
