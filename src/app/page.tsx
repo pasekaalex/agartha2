@@ -395,26 +395,33 @@ export default function Home() {
     }
   };
 
-  const shootTarget = (targetX: number, targetY: number) => {
+  const shootTarget = (clickX: number, clickY: number) => {
     setIsShooting(true);
     playGlitchSound();
 
     setTimeout(() => setIsShooting(false), 200);
 
-    // Check if any target was hit
-    setGameTargets(prev => prev.map(target => {
-      if (target.hit) return target;
+    // Check if any target was hit (expanded hitbox)
+    setGameTargets(prev => {
+      let scoreAdded = false;
+      return prev.map(target => {
+        if (target.hit || scoreAdded) return target;
 
-      const distance = Math.sqrt(
-        Math.pow(target.x - targetX, 2) + Math.pow(target.y - targetY, 2)
-      );
+        const distance = Math.sqrt(
+          Math.pow(target.x - clickX, 2) + Math.pow(target.y - clickY, 2)
+        );
 
-      if (distance < 15) {
-        setGameScore(s => s + 1);
-        return { ...target, hit: true };
-      }
-      return target;
-    }));
+        // Larger hit area (20 units)
+        if (distance < 20) {
+          if (!scoreAdded) {
+            setGameScore(s => s + 1);
+            scoreAdded = true;
+          }
+          return { ...target, hit: true };
+        }
+        return target;
+      });
+    });
   };
 
   // Animate targets falling
@@ -423,9 +430,9 @@ export default function Home() {
 
     const animInterval = setInterval(() => {
       setGameTargets(prev => {
-        const updated = prev.map(t => ({ ...t, y: t.y + 1.5 }));
+        const updated = prev.map(t => ({ ...t, y: t.y + 0.8 }));
         // Remove targets that fell off screen or were hit
-        return updated.filter(t => t.y < 105 && !t.hit);
+        return updated.filter(t => t.y < 110 && !t.hit);
       });
     }, 50);
 
@@ -831,7 +838,7 @@ export default function Home() {
 
       {/* GAME OVERLAY */}
       {gameOpen && (
-        <div className="fixed inset-0 bg-black z-[100] flex flex-col">
+        <div className="fixed inset-0 bg-black z-[100] flex flex-col cursor-crosshair">
           {/* Game HUD */}
           <div className="flex justify-between items-center p-4 text-green-400 font-mono">
             <div className="text-xl">SCORE: {gameScore}</div>
@@ -840,7 +847,7 @@ export default function Home() {
                 e.stopPropagation();
                 stopGame();
               }}
-              className="text-zinc-500 hover:text-white text-sm px-3 py-1 border border-zinc-800 hover:border-zinc-600"
+              className="text-zinc-500 hover:text-white text-sm px-3 py-1 border border-zinc-800 hover:border-zinc-600 cursor-pointer"
             >
               [exit]
             </button>
@@ -848,7 +855,7 @@ export default function Home() {
 
           {/* Game Area */}
           <div
-            className="flex-1 relative overflow-hidden"
+            className="flex-1 relative overflow-hidden cursor-crosshair"
             onClick={(e) => {
               const rect = e.currentTarget.getBoundingClientRect();
               const x = ((e.clientX - rect.left) / rect.width) * 100;
@@ -880,12 +887,13 @@ export default function Home() {
 
             {/* Player Character */}
             <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
-              <div className="relative w-24 h-24 md:w-32 md:h-32">
+              <div className="relative w-32 h-32 md:w-40 md:h-40">
                 <Image
-                  src={isShooting ? "/ep2.png" : "/ep1.png"}
+                  src={isShooting ? "/ep2.jpg" : "/ep1.jpg"}
                   alt=""
                   fill
                   className="object-contain"
+                  unoptimized
                 />
               </div>
             </div>
