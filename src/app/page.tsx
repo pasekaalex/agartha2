@@ -661,26 +661,86 @@ export default function Home() {
           <div
             className="absolute inset-0"
             style={{
-              background: `radial-gradient(circle at center, rgba(255,0,0,0.3) 0%, transparent 70%)`,
+              background: `radial-gradient(circle at center, rgba(255,0,0,0.5) 0%, transparent 70%)`,
               animation: "flash 0.3s ease-out",
             }}
           />
           {/* Lightning bolts */}
-          {[...Array(5)].map((_, i) => (
-            <div
-              key={`lightning-${i}`}
-              className="absolute"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: 0,
-                width: "2px",
-                height: `${Math.random() * 100}%`,
-                background: "linear-gradient(to bottom, #ff0000, #ffd700, transparent)",
-                boxShadow: "0 0 10px #ff0000",
-                transform: `translateX(${Math.random() * 100 - 50}px)`,
-              }}
-            />
-          ))}
+          {[...Array(12)].map((_, i) => {
+            const startX = Math.random() * 100;
+            const segments = 8 + Math.floor(Math.random() * 6);
+            const points: { x: number; y: number }[] = [{ x: startX, y: 0 }];
+
+            for (let j = 1; j <= segments; j++) {
+              const prevPoint = points[j - 1];
+              const yStep = (100 / segments) * j;
+              const xJitter = (Math.random() - 0.5) * 15;
+              points.push({
+                x: prevPoint.x + xJitter,
+                y: yStep,
+              });
+            }
+
+            const pathData = points.map((p, idx) =>
+              `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+            ).join(' ');
+
+            return (
+              <svg
+                key={`lightning-${i}`}
+                className="absolute inset-0 w-full h-full"
+                style={{
+                  opacity: 0.8,
+                  filter: "blur(0.5px)",
+                }}
+              >
+                {/* Main bolt */}
+                <path
+                  d={pathData}
+                  fill="none"
+                  stroke="#ff0000"
+                  strokeWidth={3}
+                  strokeLinecap="round"
+                  style={{
+                    filter: "drop-shadow(0 0 8px #ff0000) drop-shadow(0 0 15px #ffd700)",
+                  }}
+                />
+                {/* Glow layer */}
+                <path
+                  d={pathData}
+                  fill="none"
+                  stroke="#ffd700"
+                  strokeWidth={1.5}
+                  strokeLinecap="round"
+                  style={{
+                    filter: "blur(2px)",
+                  }}
+                />
+                {/* Branches */}
+                {points.slice(2, -2).map((point, branchIdx) => {
+                  if (Math.random() > 0.6) {
+                    const branchLength = 2 + Math.random() * 3;
+                    const branchX = point.x + (Math.random() - 0.5) * 20;
+                    const branchY = point.y + branchLength;
+                    return (
+                      <path
+                        key={`branch-${branchIdx}`}
+                        d={`M ${point.x} ${point.y} L ${branchX} ${branchY}`}
+                        fill="none"
+                        stroke="#ff0000"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        style={{
+                          filter: "drop-shadow(0 0 6px #ff0000)",
+                        }}
+                      />
+                    );
+                  }
+                  return null;
+                })}
+              </svg>
+            );
+          })}
         </div>
       )}
     </div>
