@@ -561,7 +561,7 @@ export default function Home() {
       {/* LINKS */}
       <div className="flex flex-wrap justify-center gap-4 md:gap-6 text-sm">
         {[
-          { href: `https://pump.fun/coin/${ca}`, label: "buy" },
+          { href: "https://jup.ag/swap?sell=So11111111111111111111111111111111111111112&buy=TTZcPnHQYcrktiyHej9GxLd2rcymAByuzzbojFhpmp2", label: "buy" },
           { href: `https://dexscreener.com/solana/${ca}`, label: "chart" },
           { href: "https://x.com/Agartha2_", label: "x" },
           { href: "https://x.com/i/communities/2010910570950627352", label: "community" },
