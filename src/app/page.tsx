@@ -24,7 +24,10 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false);
   const [copied, setCopied] = useState(false);
   const [imageGlitch, setImageGlitch] = useState(false);
+  const [particles, setParticles] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
+  const [lightning, setLightning] = useState(false);
   const trailId = useRef(0);
+  const particleId = useRef(0);
   const audioContext = useRef<AudioContext | null>(null);
   const droneOsc = useRef<OscillatorNode | null>(null);
   const droneGain = useRef<GainNode | null>(null);
@@ -326,6 +329,41 @@ export default function Home() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleCigClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const startX = rect.left + rect.width / 2;
+    const startY = rect.top + rect.height / 2;
+
+    // Lightning effect
+    setLightning(true);
+    playGlitchSound();
+    setTimeout(() => setLightning(false), 300);
+
+    // Spawn 20-30 particles
+    const particleCount = Math.floor(Math.random() * 10) + 20;
+    const newParticles: { id: number; x: number; y: number; color: string }[] = [];
+
+    for (let i = 0; i < particleCount; i++) {
+      particleId.current += 1;
+      const color = Math.random() > 0.6 ? "#ff0000" : "#ffd700"; // red or gold
+      newParticles.push({
+        id: particleId.current,
+        x: startX,
+        y: startY,
+        color,
+      });
+    }
+
+    setParticles(prev => [...prev, ...newParticles]);
+
+    // Remove particles after animation
+    setTimeout(() => {
+      setParticles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+    }, 2000);
+  };
+
   const easterEggActive = easterEgg >= 10;
 
   return (
@@ -572,6 +610,77 @@ export default function Home() {
       {easterEggActive && (
         <div className="fixed bottom-12 left-4 text-red-900 text-xs font-mono animate-pulse">
           the hollow earth is real
+        </div>
+      )}
+
+      {/* CIG BUTTON */}
+      <div
+        className="fixed bottom-20 right-4 md:bottom-24 md:right-8 cursor-pointer hover:scale-110 transition-transform z-50"
+        onClick={handleCigClick}
+      >
+        <div className="relative w-16 h-16 md:w-20 md:h-20">
+          <Image
+            src="/cig.png"
+            alt=""
+            fill
+            className={`object-contain ${lightning ? "brightness-200 drop-shadow-[0_0_20px_rgba(255,0,0,0.8)]" : ""}`}
+          />
+        </div>
+      </div>
+
+      {/* PARTICLES */}
+      {particles.map((particle) => {
+        const angle = Math.random() * Math.PI * 2;
+        const distance = 800 + Math.random() * 400;
+        const dx = Math.cos(angle) * distance;
+        const dy = Math.sin(angle) * distance;
+
+        return (
+          <div
+            key={`particle-${particle.id}`}
+            className="fixed pointer-events-none z-[70]"
+            style={{
+              left: particle.x,
+              top: particle.y,
+              width: "8px",
+              height: "8px",
+              backgroundColor: particle.color,
+              boxShadow: `0 0 10px ${particle.color}, 0 0 20px ${particle.color}`,
+              borderRadius: "50%",
+              animation: "particleFade 2s ease-out forwards",
+              transform: `translate(${dx}px, ${dy}px) scale(0)`,
+              transition: "all 2s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+            }}
+          />
+        );
+      })}
+
+      {/* LIGHTNING OVERLAY */}
+      {lightning && (
+        <div className="fixed inset-0 pointer-events-none z-[60]">
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `radial-gradient(circle at center, rgba(255,0,0,0.3) 0%, transparent 70%)`,
+              animation: "flash 0.3s ease-out",
+            }}
+          />
+          {/* Lightning bolts */}
+          {[...Array(5)].map((_, i) => (
+            <div
+              key={`lightning-${i}`}
+              className="absolute"
+              style={{
+                left: `${Math.random() * 100}%`,
+                top: 0,
+                width: "2px",
+                height: `${Math.random() * 100}%`,
+                background: "linear-gradient(to bottom, #ff0000, #ffd700, transparent)",
+                boxShadow: "0 0 10px #ff0000",
+                transform: `translateX(${Math.random() * 100 - 50}px)`,
+              }}
+            />
+          ))}
         </div>
       )}
     </div>

@@ -173,3 +173,23 @@ body {
     transform: translateX(0);
   }
 }
+
+/* PARTICLE FADE */
+@keyframes particleFade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* FLASH */
+@keyframes flash {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
