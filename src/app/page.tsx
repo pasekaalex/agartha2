@@ -449,6 +449,19 @@ export default function Home() {
         />
       </div>
 
+      {/* VIDEO */}
+      <div className={`relative mb-6 transition-all duration-150 ${imageGlitch ? "hue-rotate-180 saturate-200" : ""}`}>
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          className="w-full max-w-md md:max-w-lg border-2 border-zinc-800 opacity-90"
+        >
+          <source src="/vid.mp4" type="video/mp4" />
+        </video>
+      </div>
+
       {/* MASCOT IMAGE */}
       <div className={`relative mb-6 transition-all duration-150 ${imageGlitch ? "scale-x-[-1] hue-rotate-90" : ""}`}>
         <div className="relative w-24 h-24 md:w-32 md:h-32">
