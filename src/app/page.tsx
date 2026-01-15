@@ -1,12 +1,14 @@
 "use client";
 
 export default function Home() {
+  const contractAddress = "TTZcPnHQYcrktiyHej9GxLd2rcymAByuzzbojFhpmp2";
+
   return (
     <div className="min-h-screen">
       {/* MARQUEE BANNER */}
       <div className="bg-red-600 text-yellow-300 py-2 marquee border-b-4 border-dashed border-yellow-400">
         <div className="marquee-content text-xl font-bold">
-          🚨 BREAKING: HOLLOW EARTH CONFIRMED 🚨 PUMP2 IS REAL 🚨 VRIL ENERGY ACTIVATED 🚨 THE BEINGS BELOW ARE BUYING 🚨 AGARTHA2 TO THE CORE OF THE EARTH 🚨 NOT FINANCIAL ADVICE (it is) 🚨 THEY CANT STOP US 🚨 WE GO DEEPER 🚨
+          🚨 BREAKING: HOLLOW EARTH CONFIRMED 🚨 PUMP2 IS REAL 🚨 VRIL ENERGY ACTIVATED 🚨 THE BEINGS BELOW ARE BUYING 🚨 AGARTHA2 TO THE CORE OF THE EARTH 🚨 50% SUPPLY BURNT 🔥 🚨 THEY CANT STOP US 🚨 WE GO DEEPER 🚨
         </div>
       </div>
 
@@ -33,11 +35,33 @@ export default function Home() {
           </div>
         </div>
 
-        {/* NEW BADGE */}
-        <div className="flex justify-center mb-8">
+        {/* BURNT SUPPLY BADGE */}
+        <div className="flex justify-center gap-4 flex-wrap mb-8">
           <div className="bg-red-600 text-white px-4 py-2 rotate-[-5deg] blink text-2xl font-bold border-4 border-yellow-400">
             🆕 NEW ON PUMP2 🆕
           </div>
+          <div className="bg-orange-600 text-white px-6 py-3 rotate-[3deg] text-2xl font-bold border-4 border-red-400 pulse">
+            🔥 50% SUPPLY BURNT 🔥
+          </div>
+        </div>
+
+        {/* ASCII HOLLOW EARTH */}
+        <div className="text-center mb-8 font-mono text-xs md:text-sm text-green-500 opacity-70">
+          <pre className="inline-block text-left">
+{`           ,,,,,,,,,,,,,
+       ,,,,,,,,,,,,,,,,,,,,,
+     ,,,,,,,,,,///|\\\\\\,,,,,,,,,,
+   ,,,,,,,,,///  |  \\\\\\,,,,,,,,,
+  ,,,,,,,,//  AGARTHA  \\\\,,,,,,,,
+ ,,,,,,,/    ~~~~~~~~    \\,,,,,,,
+ ,,,,,,|   INNER EARTH    |,,,,,,
+ ,,,,,,'    ~~~~~~~~    ',,,,,,,
+  ,,,,,,,,\\\\  PUMP2  //,,,,,,,,
+   ,,,,,,,,,\\\\\\  |  ///,,,,,,,,,
+     ,,,,,,,,,,\\\\\\|///,,,,,,,,,,
+       ,,,,,,,,,,,,,,,,,,,,,
+           ,,,,,,,,,,,,,`}
+          </pre>
         </div>
 
         {/* VISITOR COUNTER (fake) */}
@@ -78,35 +102,21 @@ export default function Home() {
 
         <div className="geocities-hr" />
 
-        {/* TOKENOMICS */}
-        <section className="max-w-3xl mx-auto mb-12">
-          <h2 className="text-3xl font-bold text-center text-cyan-400 mb-6">
-            📊 TOKENOMICS 📊
-          </h2>
-          <div className="grid md:grid-cols-2 gap-4">
-            <div className="bg-purple-900/50 border-2 border-pink-500 p-4 text-center">
-              <div className="text-4xl mb-2">🌍</div>
-              <div className="text-xl font-bold text-pink-400">SUPPLY</div>
-              <div className="text-2xl font-mono">1,000,000,000</div>
-              <div className="text-xs text-gray-400">(same as earth&apos;s depth in inches probably)</div>
-            </div>
-            <div className="bg-purple-900/50 border-2 border-cyan-500 p-4 text-center">
-              <div className="text-4xl mb-2 spin inline-block">⚡</div>
-              <div className="text-xl font-bold text-cyan-400">VRIL TAX</div>
-              <div className="text-2xl font-mono">0%</div>
-              <div className="text-xs text-gray-400">(vril energy is free and so are we)</div>
-            </div>
-            <div className="bg-purple-900/50 border-2 border-yellow-500 p-4 text-center">
-              <div className="text-4xl mb-2">🔥</div>
-              <div className="text-xl font-bold text-yellow-400">LP</div>
-              <div className="text-2xl font-mono">BURNT</div>
-              <div className="text-xs text-gray-400">(like the sun at earth&apos;s core)</div>
-            </div>
-            <div className="bg-purple-900/50 border-2 border-green-500 p-4 text-center">
-              <div className="text-4xl mb-2 float inline-block">👽</div>
-              <div className="text-xl font-bold text-green-400">TEAM</div>
-              <div className="text-2xl font-mono">ANONYMOUS</div>
-              <div className="text-xs text-gray-400">(they live below, no doxx possible)</div>
+        {/* 50% BURNT SECTION */}
+        <section className="max-w-3xl mx-auto mb-12 text-center">
+          <div className="bg-gradient-to-r from-red-900/50 via-orange-900/50 to-red-900/50 border-4 border-orange-500 p-8">
+            <div className="text-6xl mb-4">🔥🔥🔥</div>
+            <h2 className="text-4xl md:text-5xl font-bold text-orange-400 mb-4 glow">
+              50% SUPPLY BURNT
+            </h2>
+            <p className="text-xl text-orange-200">
+              Half the tokens sacrificed to the inner sun.
+            </p>
+            <p className="text-lg text-gray-400 mt-2">
+              The beings below don&apos;t need them. Neither do you.
+            </p>
+            <div className="mt-4 text-sm text-orange-300">
+              🔥 BURNT = BULLISH 🔥
             </div>
           </div>
         </section>
@@ -146,7 +156,7 @@ export default function Home() {
               <span className="text-2xl">✅</span>
               <div>
                 <div className="font-bold text-green-400">PHASE 1: DESCENT</div>
-                <div className="text-sm">Launch on pump2, memes, vibes, vril activation</div>
+                <div className="text-sm">Launch on pump2, memes, vibes, vril activation, 50% burnt</div>
               </div>
             </div>
             <div className="flex items-center gap-4 bg-yellow-900/30 border-l-4 border-yellow-500 p-4">
@@ -180,39 +190,52 @@ export default function Home() {
           <h2 className="text-2xl font-bold mb-6 rainbow">JOIN THE DESCENT</h2>
           <div className="flex flex-wrap justify-center gap-4">
             <a
-              href="#"
+              href={`https://pump.fun/coin/${contractAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="bad-button px-8 py-4 text-xl font-bold text-white rounded-none hover:scale-110 transition-transform"
             >
-              🚀 BUY ON PUMP2 🚀
+              🚀 BUY ON PUMP.FUN 🚀
             </a>
             <a
-              href="#"
+              href={`https://dexscreener.com/solana/${contractAddress}`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="bg-black border-4 border-cyan-400 px-8 py-4 text-xl font-bold text-cyan-400 hover:bg-cyan-400 hover:text-black transition-colors"
             >
               📊 CHART
             </a>
             <a
-              href="#"
+              href="https://x.com/Agartha2_"
+              target="_blank"
+              rel="noopener noreferrer"
               className="bg-black border-4 border-pink-400 px-8 py-4 text-xl font-bold text-pink-400 hover:bg-pink-400 hover:text-black transition-colors"
             >
-              🐦 TWITTER
+              𝕏 TWITTER
             </a>
             <a
-              href="#"
+              href="https://x.com/i/communities/2010910570950627352"
+              target="_blank"
+              rel="noopener noreferrer"
               className="bg-black border-4 border-blue-400 px-8 py-4 text-xl font-bold text-blue-400 hover:bg-blue-400 hover:text-black transition-colors"
             >
-              💬 TELEGRAM
+              👥 COMMUNITY
             </a>
           </div>
         </section>
 
         {/* CONTRACT ADDRESS */}
         <section className="text-center mb-12">
-          <div className="bg-black/80 border-2 border-green-500 p-4 inline-block">
-            <div className="text-sm text-gray-400 mb-2">CONTRACT ADDRESS (copy at your own risk):</div>
-            <code className="text-green-400 font-mono text-xs md:text-sm break-all">
-              COMING SOON... THE BEINGS ARE STILL CARVING IT INTO STONE
+          <div className="bg-black/80 border-2 border-green-500 p-6 inline-block max-w-full">
+            <div className="text-sm text-gray-400 mb-2">CONTRACT ADDRESS:</div>
+            <code
+              className="text-green-400 font-mono text-sm md:text-base break-all cursor-pointer hover:text-green-300 block"
+              onClick={() => navigator.clipboard.writeText(contractAddress)}
+              title="Click to copy"
+            >
+              {contractAddress}
             </code>
+            <div className="text-xs text-gray-500 mt-2">(click to copy)</div>
           </div>
         </section>
 
@@ -239,6 +262,17 @@ export default function Home() {
             <span className="spin inline-block">🌍</span>
             <span className="mx-4">AGARTHA2</span>
             <span className="spin inline-block" style={{ animationDirection: 'reverse' }}>🌍</span>
+          </div>
+          <div className="flex justify-center gap-6 mb-4">
+            <a href="https://x.com/Agartha2_" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-pink-400 transition-colors">
+              𝕏 Twitter
+            </a>
+            <a href="https://x.com/i/communities/2010910570950627352" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-blue-400 transition-colors">
+              👥 Community
+            </a>
+            <a href={`https://pump.fun/coin/${contractAddress}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-green-400 transition-colors">
+              🚀 Pump.fun
+            </a>
           </div>
           <p className="text-gray-500 text-sm">
             © 2025 AGARTHA2 | Made with vril energy from 4,000 miles below
