@@ -20,6 +20,8 @@ export default function Home() {
   const [terminalInput, setTerminalInput] = useState("");
   const [audioEnabled, setAudioEnabled] = useState(false);
   const [showAudioPrompt, setShowAudioPrompt] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [copied, setCopied] = useState(false);
   const trailId = useRef(0);
   const audioContext = useRef<AudioContext | null>(null);
   const droneOsc = useRef<OscillatorNode | null>(null);
@@ -29,7 +31,6 @@ export default function Home() {
   const glitchChars = "!@#$%^&*()_+-=[]{}|;':\",./<>?`~0123456789";
   const originalText = "AGARTHA2";
 
-  // Terminal messages
   const terminalMessages = [
     "SIGNAL DETECTED... ORIGIN: UNKNOWN",
     "DEPTH: 4,000 MILES BELOW SURFACE",
@@ -46,21 +47,28 @@ export default function Home() {
     "THE DESCENT BEGINS",
   ];
 
-  // Initialize audio
+  // Detect mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   const initAudio = useCallback(() => {
     if (audioContext.current) return;
 
     audioContext.current = new AudioContext();
 
-    // Create drone
     droneOsc.current = audioContext.current.createOscillator();
     droneGain.current = audioContext.current.createGain();
 
     droneOsc.current.type = "sine";
-    droneOsc.current.frequency.setValueAtTime(55, audioContext.current.currentTime); // Low A
+    droneOsc.current.frequency.setValueAtTime(55, audioContext.current.currentTime);
     droneGain.current.gain.setValueAtTime(0.03, audioContext.current.currentTime);
 
-    // Add subtle modulation
     const lfo = audioContext.current.createOscillator();
     const lfoGain = audioContext.current.createGain();
     lfo.frequency.setValueAtTime(0.1, audioContext.current.currentTime);
@@ -77,7 +85,6 @@ export default function Home() {
     setShowAudioPrompt(false);
   }, []);
 
-  // Glitch sound
   const playGlitchSound = useCallback(() => {
     if (!audioContext.current || !audioEnabled) return;
 
@@ -103,7 +110,6 @@ export default function Home() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Random glitch events
   useEffect(() => {
     const glitchInterval = setInterval(() => {
       const rand = Math.random();
@@ -132,16 +138,13 @@ export default function Home() {
     return () => clearInterval(glitchInterval);
   }, [playGlitchSound]);
 
-  // Terminal keyboard handler
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "`" || e.key === "Escape") {
         if (terminalOpen) {
           setTerminalOpen(false);
         } else if (e.key === "`") {
-          setTerminalOpen(true);
-          setTerminalLines(["AGARTHA TERMINAL v2.0", "TYPE 'help' FOR COMMANDS", ""]);
-          setTimeout(() => terminalRef.current?.focus(), 100);
+          openTerminal();
         }
       }
     };
@@ -150,7 +153,12 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [terminalOpen]);
 
-  // Process terminal command
+  const openTerminal = () => {
+    setTerminalOpen(true);
+    setTerminalLines(["AGARTHA TERMINAL v2.0", "TYPE 'help' FOR COMMANDS", ""]);
+    setTimeout(() => terminalRef.current?.focus(), 100);
+  };
+
   const processCommand = (cmd: string) => {
     const command = cmd.toLowerCase().trim();
     let response: string[] = [];
@@ -269,7 +277,10 @@ export default function Home() {
     }, 20);
   };
 
+  // Only track mouse on desktop
   useEffect(() => {
+    if (isMobile) return;
+
     const handleMouseMove = (e: MouseEvent) => {
       setCursorPos({ x: e.clientX, y: e.clientY });
       trailId.current += 1;
@@ -278,7 +289,7 @@ export default function Home() {
 
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, []);
+  }, [isMobile]);
 
   const handleClick = () => {
     if (showAudioPrompt) {
@@ -298,11 +309,21 @@ export default function Home() {
     }, 150);
   };
 
+  const copyCA = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(ca);
+    scrambleCA();
+    playGlitchSound();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const easterEggActive = easterEgg >= 10;
 
   return (
     <div
-      className={`min-h-screen flex flex-col items-center justify-center p-8 noise scanlines flicker cursor-none transition-all duration-100
+      className={`min-h-screen flex flex-col items-center justify-center p-4 md:p-8 noise scanlines flicker transition-all duration-100
+        ${!isMobile ? "cursor-none" : ""}
         ${invert ? "invert" : ""}
         ${shake ? "translate-x-1" : ""}
         ${clickFlash ? "bg-white" : ""}
@@ -316,35 +337,37 @@ export default function Home() {
       {showAudioPrompt && (
         <div className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center">
           <div className="text-center">
-            <p className="text-zinc-500 text-sm mb-4">click anywhere to enter</p>
+            <p className="text-zinc-500 text-sm mb-4">{isMobile ? "tap" : "click"} anywhere to enter</p>
             <p className="text-zinc-700 text-xs">(enables audio)</p>
           </div>
         </div>
       )}
 
-      {/* CUSTOM CURSOR */}
-      <div
-        className="fixed w-4 h-4 border border-white pointer-events-none z-50 mix-blend-difference"
-        style={{
-          left: cursorPos.x - 8,
-          top: cursorPos.y - 8,
-          transform: `rotate(${cursorPos.x * 0.1}deg)`,
-        }}
-      />
-
-      {/* CURSOR TRAILS */}
-      {trails.map((trail, i) => (
-        <div
-          key={trail.id}
-          className="fixed w-2 h-2 bg-white pointer-events-none mix-blend-difference"
-          style={{
-            left: trail.x - 4,
-            top: trail.y - 4,
-            opacity: (i + 1) / trails.length * 0.5,
-            transform: `scale(${(i + 1) / trails.length})`,
-          }}
-        />
-      ))}
+      {/* CUSTOM CURSOR - desktop only */}
+      {!isMobile && (
+        <>
+          <div
+            className="fixed w-4 h-4 border border-white pointer-events-none z-50 mix-blend-difference"
+            style={{
+              left: cursorPos.x - 8,
+              top: cursorPos.y - 8,
+              transform: `rotate(${cursorPos.x * 0.1}deg)`,
+            }}
+          />
+          {trails.map((trail, i) => (
+            <div
+              key={trail.id}
+              className="fixed w-2 h-2 bg-white pointer-events-none mix-blend-difference"
+              style={{
+                left: trail.x - 4,
+                top: trail.y - 4,
+                opacity: (i + 1) / trails.length * 0.5,
+                transform: `scale(${(i + 1) / trails.length})`,
+              }}
+            />
+          ))}
+        </>
+      )}
 
       {/* SCREEN TEAR EFFECT */}
       {screenTear && (
@@ -365,10 +388,18 @@ export default function Home() {
 
       {/* TERMINAL */}
       {terminalOpen && (
-        <div className="fixed inset-4 md:inset-20 bg-black border border-green-500/50 z-[60] p-4 font-mono text-sm overflow-hidden flex flex-col">
+        <div
+          className="fixed inset-2 md:inset-20 bg-black border border-green-500/50 z-[60] p-3 md:p-4 font-mono text-xs md:text-sm overflow-hidden flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="flex justify-between items-center mb-4 text-green-500">
             <span>AGARTHA_TERMINAL</span>
-            <span className="text-xs text-zinc-600">ESC to close</span>
+            <button
+              onClick={() => setTerminalOpen(false)}
+              className="text-xs text-zinc-500 hover:text-white px-2 py-1"
+            >
+              [close]
+            </button>
           </div>
           <div className="flex-1 overflow-y-auto text-green-400 space-y-1">
             {terminalLines.map((line, i) => (
@@ -390,8 +421,10 @@ export default function Home() {
                   setTerminalInput("");
                 }
               }}
-              className="flex-1 bg-transparent outline-none text-green-400 caret-green-400"
+              className="flex-1 bg-transparent outline-none text-green-400 caret-green-400 text-base"
               autoFocus
+              autoCapitalize="none"
+              autoCorrect="off"
             />
           </div>
         </div>
@@ -399,38 +432,33 @@ export default function Home() {
 
       {/* TITLE */}
       <h1
-        className="glitch text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter mb-2 select-none"
+        className="glitch text-4xl sm:text-5xl md:text-7xl lg:text-8xl font-bold tracking-tighter mb-2 select-none"
         data-text={glitchText}
         style={{
-          transform: mounted ? `translate(${(cursorPos.x - windowSize.w / 2) * 0.01}px, ${(cursorPos.y - windowSize.h / 2) * 0.01}px)` : undefined,
+          transform: mounted && !isMobile ? `translate(${(cursorPos.x - windowSize.w / 2) * 0.01}px, ${(cursorPos.y - windowSize.h / 2) * 0.01}px)` : undefined,
         }}
       >
         {glitchText}
       </h1>
 
-      <p className={`text-zinc-500 text-sm mb-12 corrupt select-none ${easterEggActive ? "text-red-500" : ""}`}>
+      <p className={`text-zinc-500 text-sm mb-8 md:mb-12 corrupt select-none ${easterEggActive ? "text-red-500" : ""}`}>
         {easterEggActive ? "you found it" : "they went deeper"}
       </p>
 
       {/* CONTRACT */}
-      <div className="mb-12 text-center">
-        <div className="text-zinc-600 text-xs mb-2">CA</div>
+      <div className="mb-8 md:mb-12 text-center w-full max-w-md px-4">
+        <div className="text-zinc-600 text-xs mb-2">CA {copied && <span className="text-green-500">(copied!)</span>}</div>
         <code
-          className="text-zinc-400 text-xs md:text-sm cursor-none hover:text-white transition-colors break-all"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigator.clipboard.writeText(ca);
-            scrambleCA();
-            playGlitchSound();
-          }}
-          onMouseEnter={scrambleCA}
+          className="text-zinc-400 text-xs md:text-sm hover:text-white transition-colors break-all block p-3 bg-zinc-900/50 rounded active:bg-zinc-800"
+          onClick={copyCA}
+          onMouseEnter={() => !isMobile && scrambleCA()}
         >
           {scrambledCA}
         </code>
       </div>
 
       {/* LINKS */}
-      <div className="flex gap-6 text-sm">
+      <div className="flex flex-wrap justify-center gap-4 md:gap-6 text-sm">
         {[
           { href: `https://pump.fun/coin/${ca}`, label: "buy" },
           { href: `https://dexscreener.com/solana/${ca}`, label: "chart" },
@@ -442,7 +470,7 @@ export default function Home() {
             href={link.href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-zinc-500 hover:text-white transition-colors cursor-none"
+            className={`text-zinc-500 hover:text-white transition-colors p-2 ${!isMobile ? "cursor-none" : ""}`}
             onClick={(e) => e.stopPropagation()}
           >
             [{link.label}]
@@ -450,8 +478,21 @@ export default function Home() {
         ))}
       </div>
 
-      {/* TERMINAL HINT */}
-      {!terminalOpen && mounted && (
+      {/* TERMINAL BUTTON - mobile */}
+      {isMobile && !terminalOpen && mounted && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            openTerminal();
+          }}
+          className="fixed bottom-4 left-4 text-zinc-600 text-xs font-mono p-2 active:text-white"
+        >
+          [terminal]
+        </button>
+      )}
+
+      {/* TERMINAL HINT - desktop */}
+      {!isMobile && !terminalOpen && mounted && (
         <div className="fixed bottom-4 left-4 text-zinc-800 text-xs font-mono">
           press ` for terminal
         </div>
@@ -466,7 +507,7 @@ export default function Home() {
 
       {/* EASTER EGG */}
       {easterEggActive && (
-        <div className="fixed bottom-4 left-4 text-red-900 text-xs font-mono animate-pulse">
+        <div className="fixed bottom-12 left-4 text-red-900 text-xs font-mono animate-pulse">
           the hollow earth is real
         </div>
       )}
