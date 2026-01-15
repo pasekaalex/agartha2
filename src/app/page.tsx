@@ -666,15 +666,15 @@ export default function Home() {
             }}
           />
           {/* Lightning bolts */}
-          {[...Array(12)].map((_, i) => {
+          {[...Array(isMobile ? 6 : 12)].map((_, i) => {
             const startX = Math.random() * 100;
-            const segments = 8 + Math.floor(Math.random() * 6);
+            const segments = 10 + Math.floor(Math.random() * 8);
             const points: { x: number; y: number }[] = [{ x: startX, y: 0 }];
 
             for (let j = 1; j <= segments; j++) {
               const prevPoint = points[j - 1];
               const yStep = (100 / segments) * j;
-              const xJitter = (Math.random() - 0.5) * 15;
+              const xJitter = (Math.random() - 0.5) * 20;
               points.push({
                 x: prevPoint.x + xJitter,
                 y: yStep,
@@ -689,9 +689,10 @@ export default function Home() {
               <svg
                 key={`lightning-${i}`}
                 className="absolute inset-0 w-full h-full"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
                 style={{
-                  opacity: 0.8,
-                  filter: "blur(0.5px)",
+                  opacity: 0.9,
                 }}
               >
                 {/* Main bolt */}
@@ -699,10 +700,11 @@ export default function Home() {
                   d={pathData}
                   fill="none"
                   stroke="#ff0000"
-                  strokeWidth={3}
+                  strokeWidth={0.5}
                   strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
                   style={{
-                    filter: "drop-shadow(0 0 8px #ff0000) drop-shadow(0 0 15px #ffd700)",
+                    filter: "drop-shadow(0 0 4px #ff0000) drop-shadow(0 0 8px #ffd700)",
                   }}
                 />
                 {/* Glow layer */}
@@ -710,17 +712,18 @@ export default function Home() {
                   d={pathData}
                   fill="none"
                   stroke="#ffd700"
-                  strokeWidth={1.5}
+                  strokeWidth={0.3}
                   strokeLinecap="round"
+                  vectorEffect="non-scaling-stroke"
                   style={{
-                    filter: "blur(2px)",
+                    filter: "blur(1px)",
                   }}
                 />
                 {/* Branches */}
                 {points.slice(2, -2).map((point, branchIdx) => {
-                  if (Math.random() > 0.6) {
-                    const branchLength = 2 + Math.random() * 3;
-                    const branchX = point.x + (Math.random() - 0.5) * 20;
+                  if (Math.random() > 0.5) {
+                    const branchLength = 5 + Math.random() * 8;
+                    const branchX = point.x + (Math.random() - 0.5) * 30;
                     const branchY = point.y + branchLength;
                     return (
                       <path
@@ -728,10 +731,11 @@ export default function Home() {
                         d={`M ${point.x} ${point.y} L ${branchX} ${branchY}`}
                         fill="none"
                         stroke="#ff0000"
-                        strokeWidth={1.5}
+                        strokeWidth={0.3}
                         strokeLinecap="round"
+                        vectorEffect="non-scaling-stroke"
                         style={{
-                          filter: "drop-shadow(0 0 6px #ff0000)",
+                          filter: "drop-shadow(0 0 3px #ff0000)",
                         }}
                       />
                     );
