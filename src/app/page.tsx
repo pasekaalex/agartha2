@@ -364,7 +364,7 @@ export default function Home() {
           />
           {trails.map((trail, i) => (
             <div
-              key={trail.id}
+              key={`trail-${trail.id}-${i}`}
               className="fixed w-2 h-2 bg-white pointer-events-none mix-blend-difference"
               style={{
                 left: trail.x - 4,
