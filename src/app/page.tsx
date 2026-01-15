@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, useCallback } from "react";
+import Image from "next/image";
 
 export default function Home() {
   const ca = "TTZcPnHQYcrktiyHej9GxLd2rcymAByuzzbojFhpmp2";
@@ -22,6 +23,7 @@ export default function Home() {
   const [showAudioPrompt, setShowAudioPrompt] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [imageGlitch, setImageGlitch] = useState(false);
   const trailId = useRef(0);
   const audioContext = useRef<AudioContext | null>(null);
   const droneOsc = useRef<OscillatorNode | null>(null);
@@ -132,6 +134,12 @@ export default function Home() {
 
       if (rand > 0.3 && rand < 0.5) {
         scrambleText();
+      }
+
+      // Image glitch (25% chance)
+      if (rand > 0.75) {
+        setImageGlitch(true);
+        setTimeout(() => setImageGlitch(false), 200);
       }
     }, 2000);
 
@@ -429,6 +437,48 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* BACKGROUND BANNER */}
+      <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+        <Image
+          src="/banner.jpeg"
+          alt=""
+          fill
+          className={`object-cover opacity-[0.07] transition-all duration-200 ${imageGlitch ? "scale-105 hue-rotate-180" : ""}`}
+          priority
+        />
+      </div>
+
+      {/* MASCOT IMAGE */}
+      <div className={`relative mb-6 transition-all duration-150 ${imageGlitch ? "scale-x-[-1] hue-rotate-90" : ""}`}>
+        <div className="relative w-24 h-24 md:w-32 md:h-32">
+          <Image
+            src="/pic.jpg"
+            alt="AGARTHA2"
+            fill
+            className={`object-cover rounded-full border-2 border-zinc-800 ${imageGlitch ? "blur-[2px]" : ""}`}
+            priority
+          />
+          {/* Glitch overlay layers */}
+          <div
+            className="absolute inset-0 rounded-full overflow-hidden opacity-50 mix-blend-screen"
+            style={{
+              transform: imageGlitch ? "translateX(4px)" : "translateX(0)",
+              filter: "url(#cyan)",
+            }}
+          >
+            <Image src="/pic.jpg" alt="" fill className="object-cover" style={{ filter: "url(#cyan)" }} />
+          </div>
+          <div
+            className="absolute inset-0 rounded-full overflow-hidden opacity-50 mix-blend-screen"
+            style={{
+              transform: imageGlitch ? "translateX(-4px)" : "translateX(0)",
+            }}
+          >
+            <Image src="/pic.jpg" alt="" fill className="object-cover" style={{ filter: "hue-rotate(270deg)" }} />
+          </div>
+        </div>
+      </div>
 
       {/* TITLE */}
       <h1
