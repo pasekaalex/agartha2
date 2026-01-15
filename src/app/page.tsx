@@ -28,18 +28,23 @@ export default function Home() {
   const [lightning, setLightning] = useState(false);
   const [gameOpen, setGameOpen] = useState(false);
   const [gameScore, setGameScore] = useState(0);
-  const [gameTargets, setGameTargets] = useState<{ id: number; x: number; y: number; hit: boolean }[]>([]);
+  const [gameTargets, setGameTargets] = useState<{ id: number; x: number; y: number; hit: boolean; type: 'normal' | 'fast' | 'golden'; hp: number }[]>([]);
   const [isShooting, setIsShooting] = useState(false);
   const [gameLives, setGameLives] = useState(3);
   const [gameCombo, setGameCombo] = useState(0);
   const [gameOver, setGameOver] = useState(false);
   const [gameLightning, setGameLightning] = useState<{ x: number; y: number } | null>(null);
-  const [gameExplosions, setGameExplosions] = useState<{ id: number; x: number; y: number }[]>([]);
+  const [gameExplosions, setGameExplosions] = useState<{ id: number; x: number; y: number; color?: string }[]>([]);
   const [gameHighScore, setGameHighScore] = useState(0);
+  const [gameShake, setGameShake] = useState(false);
+  const [scorePopups, setScorePopups] = useState<{ id: number; x: number; y: number; score: number; color: string }[]>([]);
+  const [gameCrosshair, setGameCrosshair] = useState({ x: 50, y: 50 });
+  const [chainLightning, setChainLightning] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
   const trailId = useRef(0);
   const particleId = useRef(0);
   const targetId = useRef(0);
   const explosionId = useRef(0);
+  const scorePopupId = useRef(0);
   const gameInterval = useRef<NodeJS.Timeout | null>(null);
   const gameTime = useRef(0);
   const audioContext = useRef<AudioContext | null>(null);
@@ -387,6 +392,8 @@ export default function Home() {
     setGameCombo(0);
     setGameOver(false);
     setGameExplosions([]);
+    setScorePopups([]);
+    setChainLightning(null);
     gameTime.current = 0;
 
     // Spawn targets - starts at 2s, speeds up over time
@@ -394,16 +401,32 @@ export default function Home() {
       if (gameInterval.current) clearTimeout(gameInterval.current);
 
       targetId.current += 1;
+
+      // Determine target type based on probability
+      const rand = Math.random();
+      let type: 'normal' | 'fast' | 'golden' = 'normal';
+      let hp = 1;
+
+      if (rand > 0.92) {
+        type = 'golden'; // 8% chance - worth 5 points
+        hp = 1;
+      } else if (rand > 0.75) {
+        type = 'fast'; // 17% chance - faster but worth 2 points
+        hp = 1;
+      }
+
       setGameTargets(prev => [...prev, {
         id: targetId.current,
         x: Math.random() * 70 + 15, // 15-85% of screen width
         y: -5,
         hit: false,
+        type,
+        hp,
       }]);
 
       gameTime.current += 1;
-      // Spawn rate decreases from 2000ms to 800ms over time
-      const spawnDelay = Math.max(800, 2000 - gameTime.current * 30);
+      // Spawn rate decreases from 2000ms to 700ms over time
+      const spawnDelay = Math.max(700, 2000 - gameTime.current * 25);
       gameInterval.current = setTimeout(spawnTarget, spawnDelay);
     };
 
@@ -467,30 +490,51 @@ export default function Home() {
     }, 200);
 
     // Check if any target was hit
-    let hitAny = false;
+    let hitTarget: { x: number; y: number; type: 'normal' | 'fast' | 'golden' } | null = null;
+
     setGameTargets(prev => {
-      return prev.map(target => {
-        if (target.hit || hitAny) return target;
+      const newTargets = prev.map(target => {
+        if (target.hit || hitTarget) return target;
 
         const distance = Math.sqrt(
           Math.pow(target.x - clickX, 2) + Math.pow(target.y - clickY, 2)
         );
 
-        // Hit detection
-        if (distance < 18) {
-          hitAny = true;
-          // Add explosion at target location
-          explosionId.current += 1;
-          setGameExplosions(exp => [...exp, { id: explosionId.current, x: target.x, y: target.y }]);
+        // Hit detection - golden targets have bigger hitbox
+        const hitRadius = target.type === 'golden' ? 22 : 18;
+        if (distance < hitRadius) {
+          hitTarget = { x: target.x, y: target.y, type: target.type };
+
+          // Determine points based on target type
+          const basePoints = target.type === 'golden' ? 5 : target.type === 'fast' ? 2 : 1;
+
+          // Add explosion at target location with color based on type
+          const expId = ++explosionId.current;
+          const expColor = target.type === 'golden' ? '#ffd700' : target.type === 'fast' ? '#00ffff' : '#ff0000';
+          setGameExplosions(exp => [...exp, { id: expId, x: target.x, y: target.y, color: expColor }]);
           setTimeout(() => {
-            setGameExplosions(exp => exp.filter(e => e.id !== explosionId.current));
+            setGameExplosions(exp => exp.filter(e => e.id !== expId));
           }, 500);
 
-          // Score with combo bonus
+          // Screen shake on hit
+          setGameShake(true);
+          setTimeout(() => setGameShake(false), 100);
+
+          // Score popup
           setGameCombo(c => {
             const newCombo = c + 1;
-            const bonus = Math.floor(newCombo / 3); // +1 point every 3 hits
-            setGameScore(s => s + 1 + bonus);
+            const comboBonus = Math.floor(newCombo / 3);
+            const totalPoints = basePoints + comboBonus;
+
+            // Add floating score popup
+            const popupId = ++scorePopupId.current;
+            const popupColor = target.type === 'golden' ? '#ffd700' : newCombo >= 3 ? '#00ff00' : '#ffffff';
+            setScorePopups(p => [...p, { id: popupId, x: target.x, y: target.y, score: totalPoints, color: popupColor }]);
+            setTimeout(() => {
+              setScorePopups(p => p.filter(pop => pop.id !== popupId));
+            }, 1000);
+
+            setGameScore(s => s + totalPoints);
             return newCombo;
           });
 
@@ -499,12 +543,49 @@ export default function Home() {
         }
         return target;
       });
+
+      // Chain lightning! 30% chance to hit a nearby target when you hit one
+      if (hitTarget && Math.random() < 0.3) {
+        const nearbyTarget = newTargets.find(t =>
+          !t.hit &&
+          Math.sqrt(Math.pow(t.x - hitTarget!.x, 2) + Math.pow(t.y - hitTarget!.y, 2)) < 30
+        );
+
+        if (nearbyTarget) {
+          // Show chain lightning effect
+          setChainLightning({ from: { x: hitTarget.x, y: hitTarget.y }, to: { x: nearbyTarget.x, y: nearbyTarget.y } });
+          setTimeout(() => setChainLightning(null), 150);
+
+          // Hit the chained target
+          const chainExpId = ++explosionId.current;
+          setGameExplosions(exp => [...exp, { id: chainExpId, x: nearbyTarget.x, y: nearbyTarget.y, color: '#00ffff' }]);
+          setTimeout(() => {
+            setGameExplosions(exp => exp.filter(e => e.id !== chainExpId));
+          }, 500);
+
+          // Chain hit bonus
+          const chainPopupId = ++scorePopupId.current;
+          setScorePopups(p => [...p, { id: chainPopupId, x: nearbyTarget.x, y: nearbyTarget.y, score: 3, color: '#00ffff' }]);
+          setTimeout(() => {
+            setScorePopups(p => p.filter(pop => pop.id !== chainPopupId));
+          }, 1000);
+
+          setGameScore(s => s + 3);
+          setGameCombo(c => c + 1);
+
+          return newTargets.map(t => t.id === nearbyTarget.id ? { ...t, hit: true } : t);
+        }
+      }
+
+      return newTargets;
     });
 
-    // Reset combo on miss
-    if (!hitAny) {
-      setGameCombo(0);
-    }
+    // Reset combo on miss (after state update)
+    setTimeout(() => {
+      if (!hitTarget) {
+        setGameCombo(0);
+      }
+    }, 0);
   };
 
   // Animate targets falling
@@ -514,8 +595,11 @@ export default function Home() {
     const animInterval = setInterval(() => {
       setGameTargets(prev => {
         const updated = prev.map(t => {
-          // Speed increases slightly over time
-          const speed = 0.6 + Math.min(gameTime.current * 0.02, 0.6);
+          // Base speed increases over time
+          const baseSpeed = 0.5 + Math.min(gameTime.current * 0.015, 0.5);
+          // Fast targets move 1.8x faster, golden move slower
+          const typeMultiplier = t.type === 'fast' ? 1.8 : t.type === 'golden' ? 0.7 : 1;
+          const speed = baseSpeed * typeMultiplier;
           return { ...t, y: t.y + speed };
         });
 
@@ -945,7 +1029,7 @@ export default function Home() {
 
       {/* GAME OVERLAY */}
       {gameOpen && (
-        <div className="fixed inset-0 bg-black z-[100] flex flex-col cursor-crosshair">
+        <div className={`fixed inset-0 bg-black z-[100] flex flex-col cursor-none transition-transform duration-75 ${gameShake ? 'translate-x-1' : ''}`}>
           {/* Game HUD */}
           <div className="flex justify-between items-center p-4 text-green-400 font-mono">
             <div className="flex items-center gap-6">
@@ -984,7 +1068,7 @@ export default function Home() {
 
           {/* Game Area */}
           <div
-            className="flex-1 relative overflow-hidden cursor-crosshair"
+            className="flex-1 relative overflow-hidden cursor-none"
             onClick={(e) => {
               if (gameOver) return;
               const rect = e.currentTarget.getBoundingClientRect();
@@ -992,8 +1076,36 @@ export default function Home() {
               const y = ((e.clientY - rect.top) / rect.height) * 100;
               shootTarget(x, y);
             }}
+            onMouseMove={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = ((e.clientX - rect.left) / rect.width) * 100;
+              const y = ((e.clientY - rect.top) / rect.height) * 100;
+              setGameCrosshair({ x, y });
+            }}
           >
-            {/* Falling Targets (cigs) */}
+            {/* Custom Crosshair */}
+            {!gameOver && !isMobile && (
+              <div
+                className="absolute pointer-events-none z-50"
+                style={{
+                  left: `${gameCrosshair.x}%`,
+                  top: `${gameCrosshair.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                {/* Outer ring */}
+                <div className={`w-8 h-8 border-2 border-red-500 rounded-full transition-all duration-75 ${isShooting ? 'scale-75 border-yellow-400' : ''}`}
+                  style={{ boxShadow: '0 0 10px rgba(255,0,0,0.5)' }}
+                />
+                {/* Center dot */}
+                <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 rounded-full transition-all ${isShooting ? 'bg-yellow-400 scale-150' : 'bg-red-500'}`} />
+                {/* Cross lines */}
+                <div className="absolute top-1/2 left-0 w-full h-px bg-red-500/50" />
+                <div className="absolute top-0 left-1/2 w-px h-full bg-red-500/50" />
+              </div>
+            )}
+
+            {/* Falling Targets */}
             {gameTargets.map(target => (
               <div
                 key={`target-${target.id}`}
@@ -1003,16 +1115,63 @@ export default function Home() {
                   top: `${target.y}%`,
                   transform: "translate(-50%, -50%)",
                   opacity: target.hit ? 0 : 1,
-                  scale: target.hit ? "1.5" : "1",
+                  scale: target.hit ? "1.5" : target.type === 'golden' ? "1.3" : "1",
                 }}
               >
+                {/* Target glow ring for special types */}
+                {target.type !== 'normal' && !target.hit && (
+                  <div
+                    className="absolute inset-0 rounded-full animate-pulse"
+                    style={{
+                      transform: 'scale(1.5)',
+                      background: target.type === 'golden'
+                        ? 'radial-gradient(circle, rgba(255,215,0,0.4) 0%, transparent 70%)'
+                        : 'radial-gradient(circle, rgba(0,255,255,0.4) 0%, transparent 70%)',
+                    }}
+                  />
+                )}
                 <Image
                   src="/cig.png"
                   alt=""
-                  width={40}
-                  height={40}
-                  className={`${target.hit ? "blur-sm" : ""} drop-shadow-[0_0_8px_rgba(255,100,0,0.5)]`}
+                  width={target.type === 'golden' ? 50 : 40}
+                  height={target.type === 'golden' ? 50 : 40}
+                  className={`${target.hit ? "blur-sm" : ""}`}
+                  style={{
+                    filter: target.type === 'golden'
+                      ? 'drop-shadow(0 0 12px rgba(255,215,0,0.9)) hue-rotate(40deg) saturate(1.5)'
+                      : target.type === 'fast'
+                      ? 'drop-shadow(0 0 8px rgba(0,255,255,0.8)) hue-rotate(180deg)'
+                      : 'drop-shadow(0 0 8px rgba(255,100,0,0.5))',
+                  }}
                 />
+                {/* Type indicator */}
+                {target.type === 'golden' && !target.hit && (
+                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 text-yellow-400 text-xs font-bold animate-bounce">
+                    +5
+                  </div>
+                )}
+                {target.type === 'fast' && !target.hit && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-cyan-400 text-xs">
+                    FAST
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Score Popups */}
+            {scorePopups.map(popup => (
+              <div
+                key={`popup-${popup.id}`}
+                className="absolute pointer-events-none font-bold text-2xl"
+                style={{
+                  left: `${popup.x}%`,
+                  top: `${popup.y}%`,
+                  color: popup.color,
+                  textShadow: `0 0 10px ${popup.color}`,
+                  animation: 'scorePopup 1s ease-out forwards',
+                }}
+              >
+                +{popup.score}
               </div>
             ))}
 
@@ -1029,25 +1188,64 @@ export default function Home() {
               >
                 {/* Explosion ring */}
                 <div
-                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-red-500"
+                  className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
                   style={{
                     animation: "explosionRing 0.4s ease-out forwards",
-                    boxShadow: "0 0 20px rgba(255,0,0,0.8), 0 0 40px rgba(255,215,0,0.4)",
+                    borderColor: exp.color || '#ff0000',
+                    borderWidth: '2px',
+                    boxShadow: `0 0 20px ${exp.color || '#ff0000'}, 0 0 40px ${exp.color || '#ffd700'}`,
                   }}
                 />
                 {/* Explosion particles */}
                 {[...Array(8)].map((_, i) => (
                   <div
                     key={i}
-                    className="absolute w-2 h-2 bg-yellow-400 rounded-full"
+                    className="absolute w-2 h-2 rounded-full"
                     style={{
                       animation: `explosionParticle${i} 0.35s ease-out forwards`,
-                      boxShadow: "0 0 6px rgba(255,215,0,0.8)",
+                      backgroundColor: exp.color || '#ffd700',
+                      boxShadow: `0 0 6px ${exp.color || '#ffd700'}`,
                     }}
                   />
                 ))}
               </div>
             ))}
+
+            {/* Chain Lightning Effect */}
+            {chainLightning && (
+              <svg
+                className="absolute inset-0 w-full h-full pointer-events-none z-40"
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+              >
+                {(() => {
+                  const { from, to } = chainLightning;
+                  const segments = 4;
+                  const points: { x: number; y: number }[] = [{ x: from.x, y: from.y }];
+
+                  for (let j = 1; j < segments; j++) {
+                    const t = j / segments;
+                    points.push({
+                      x: from.x + (to.x - from.x) * t + (Math.random() - 0.5) * 6,
+                      y: from.y + (to.y - from.y) * t + (Math.random() - 0.5) * 6,
+                    });
+                  }
+                  points.push({ x: to.x, y: to.y });
+
+                  const pathData = points.map((p, idx) =>
+                    `${idx === 0 ? 'M' : 'L'} ${p.x} ${p.y}`
+                  ).join(' ');
+
+                  return (
+                    <>
+                      <path d={pathData} fill="none" stroke="#00ffff" strokeWidth={1} vectorEffect="non-scaling-stroke"
+                        style={{ filter: "drop-shadow(0 0 6px #00ffff) drop-shadow(0 0 12px #00ffff)" }} />
+                      <path d={pathData} fill="none" stroke="#ffffff" strokeWidth={0.5} vectorEffect="non-scaling-stroke" />
+                    </>
+                  );
+                })()}
+              </svg>
+            )}
 
             {/* Lightning bolt from player to click */}
             {gameLightning && (
