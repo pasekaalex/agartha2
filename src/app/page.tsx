@@ -26,8 +26,14 @@ export default function Home() {
   const [imageGlitch, setImageGlitch] = useState(false);
   const [particles, setParticles] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
   const [lightning, setLightning] = useState(false);
+  const [gameOpen, setGameOpen] = useState(false);
+  const [gameScore, setGameScore] = useState(0);
+  const [gameTargets, setGameTargets] = useState<{ id: number; x: number; y: number; hit: boolean }[]>([]);
+  const [isShooting, setIsShooting] = useState(false);
   const trailId = useRef(0);
   const particleId = useRef(0);
+  const targetId = useRef(0);
+  const gameInterval = useRef<NodeJS.Timeout | null>(null);
   const audioContext = useRef<AudioContext | null>(null);
   const droneOsc = useRef<OscillatorNode | null>(null);
   const droneGain = useRef<GainNode | null>(null);
@@ -364,6 +370,68 @@ export default function Home() {
     }, 2000);
   };
 
+  // Game functions
+  const startGame = () => {
+    setGameOpen(true);
+    setGameScore(0);
+    setGameTargets([]);
+
+    // Spawn targets every 1.5 seconds
+    gameInterval.current = setInterval(() => {
+      targetId.current += 1;
+      setGameTargets(prev => [...prev, {
+        id: targetId.current,
+        x: Math.random() * 80 + 10, // 10-90% of screen width
+        y: -5,
+        hit: false,
+      }]);
+    }, 1500);
+  };
+
+  const stopGame = () => {
+    setGameOpen(false);
+    if (gameInterval.current) {
+      clearInterval(gameInterval.current);
+    }
+  };
+
+  const shootTarget = (targetX: number, targetY: number) => {
+    setIsShooting(true);
+    playGlitchSound();
+
+    setTimeout(() => setIsShooting(false), 200);
+
+    // Check if any target was hit
+    setGameTargets(prev => prev.map(target => {
+      if (target.hit) return target;
+
+      const distance = Math.sqrt(
+        Math.pow(target.x - targetX, 2) + Math.pow(target.y - targetY, 2)
+      );
+
+      if (distance < 15) {
+        setGameScore(s => s + 1);
+        return { ...target, hit: true };
+      }
+      return target;
+    }));
+  };
+
+  // Animate targets falling
+  useEffect(() => {
+    if (!gameOpen) return;
+
+    const animInterval = setInterval(() => {
+      setGameTargets(prev => {
+        const updated = prev.map(t => ({ ...t, y: t.y + 1.5 }));
+        // Remove targets that fell off screen or were hit
+        return updated.filter(t => t.y < 105 && !t.hit);
+      });
+    }, 50);
+
+    return () => clearInterval(animInterval);
+  }, [gameOpen]);
+
   const easterEggActive = easterEgg >= 10;
 
   return (
@@ -580,7 +648,7 @@ export default function Home() {
       </div>
 
       {/* TERMINAL BUTTON - mobile */}
-      {isMobile && !terminalOpen && mounted && (
+      {isMobile && !terminalOpen && !gameOpen && mounted && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -593,10 +661,23 @@ export default function Home() {
       )}
 
       {/* TERMINAL HINT - desktop */}
-      {!isMobile && !terminalOpen && mounted && (
+      {!isMobile && !terminalOpen && !gameOpen && mounted && (
         <div className="fixed bottom-4 left-4 text-zinc-800 text-xs font-mono">
           press ` for terminal
         </div>
+      )}
+
+      {/* GAME BUTTON */}
+      {!gameOpen && !terminalOpen && mounted && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            startGame();
+          }}
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 text-zinc-600 hover:text-white text-xs font-mono p-2 border border-zinc-800 hover:border-zinc-600 transition-colors"
+        >
+          [play game]
+        </button>
       )}
 
       {/* CLICK COUNTER */}
@@ -745,6 +826,88 @@ export default function Home() {
               </svg>
             );
           })}
+        </div>
+      )}
+
+      {/* GAME OVERLAY */}
+      {gameOpen && (
+        <div className="fixed inset-0 bg-black z-[100] flex flex-col">
+          {/* Game HUD */}
+          <div className="flex justify-between items-center p-4 text-green-400 font-mono">
+            <div className="text-xl">SCORE: {gameScore}</div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                stopGame();
+              }}
+              className="text-zinc-500 hover:text-white text-sm px-3 py-1 border border-zinc-800 hover:border-zinc-600"
+            >
+              [exit]
+            </button>
+          </div>
+
+          {/* Game Area */}
+          <div
+            className="flex-1 relative overflow-hidden"
+            onClick={(e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = ((e.clientX - rect.left) / rect.width) * 100;
+              const y = ((e.clientY - rect.top) / rect.height) * 100;
+              shootTarget(x, y);
+            }}
+          >
+            {/* Falling Targets (cigs) */}
+            {gameTargets.map(target => (
+              <div
+                key={`target-${target.id}`}
+                className="absolute transition-opacity duration-200"
+                style={{
+                  left: `${target.x}%`,
+                  top: `${target.y}%`,
+                  transform: "translate(-50%, -50%)",
+                  opacity: target.hit ? 0 : 1,
+                }}
+              >
+                <Image
+                  src="/cig.png"
+                  alt=""
+                  width={40}
+                  height={40}
+                  className={`${target.hit ? "blur-sm" : ""}`}
+                />
+              </div>
+            ))}
+
+            {/* Player Character */}
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2">
+              <div className="relative w-24 h-24 md:w-32 md:h-32">
+                <Image
+                  src={isShooting ? "/ep2.png" : "/ep1.png"}
+                  alt=""
+                  fill
+                  className="object-contain"
+                />
+              </div>
+            </div>
+
+            {/* Shooting Effect */}
+            {isShooting && (
+              <div className="absolute inset-0 pointer-events-none">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: "radial-gradient(circle at center, rgba(255,0,0,0.3) 0%, transparent 50%)",
+                    animation: "flash 0.2s ease-out",
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Game Instructions */}
+          <div className="p-4 text-center text-zinc-600 text-xs font-mono border-t border-zinc-900">
+            {isMobile ? "TAP" : "CLICK"} TO SHOOT LIGHTNING AT FALLING TARGETS
+          </div>
         </div>
       )}
     </div>
