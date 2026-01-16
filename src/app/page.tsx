@@ -396,41 +396,48 @@ export default function Home() {
     setChainLightning(null);
     gameTime.current = 0;
 
-    // Spawn targets - starts at 2s, speeds up over time
+    // Spawn targets - aggressive difficulty scaling
     const spawnTarget = () => {
       if (gameInterval.current) clearTimeout(gameInterval.current);
 
-      targetId.current += 1;
+      // Spawn multiple targets at higher difficulties
+      const wave = Math.floor(gameTime.current / 15); // Every 15 spawns = new wave
+      const extraSpawns = Math.min(wave, 2); // Up to 2 extra targets per spawn
 
-      // Determine target type based on probability
-      const rand = Math.random();
-      let type: 'normal' | 'fast' | 'golden' = 'normal';
-      let hp = 1;
+      for (let s = 0; s <= extraSpawns; s++) {
+        targetId.current += 1;
 
-      if (rand > 0.92) {
-        type = 'golden'; // 8% chance - worth 5 points
-        hp = 1;
-      } else if (rand > 0.75) {
-        type = 'fast'; // 17% chance - faster but worth 2 points
-        hp = 1;
+        // Fast targets become more common over time (17% -> 45%)
+        const fastChance = Math.min(0.45, 0.17 + gameTime.current * 0.007);
+        const rand = Math.random();
+        let type: 'normal' | 'fast' | 'golden' = 'normal';
+        let hp = 1;
+
+        if (rand > 0.94) {
+          type = 'golden'; // 6% chance - worth 5 points
+          hp = 1;
+        } else if (rand > (1 - fastChance)) {
+          type = 'fast'; // Increases over time
+          hp = 1;
+        }
+
+        setGameTargets(prev => [...prev, {
+          id: targetId.current,
+          x: Math.random() * 70 + 15 + (s * 5), // Slightly spread multiple spawns
+          y: -5 - (s * 3), // Stagger vertical start
+          hit: false,
+          type,
+          hp,
+        }]);
       }
 
-      setGameTargets(prev => [...prev, {
-        id: targetId.current,
-        x: Math.random() * 70 + 15, // 15-85% of screen width
-        y: -5,
-        hit: false,
-        type,
-        hp,
-      }]);
-
       gameTime.current += 1;
-      // Spawn rate decreases from 2000ms to 700ms over time
-      const spawnDelay = Math.max(700, 2000 - gameTime.current * 25);
+      // Spawn rate: 1800ms -> 400ms (faster scaling, lower minimum)
+      const spawnDelay = Math.max(400, 1800 - gameTime.current * 40);
       gameInterval.current = setTimeout(spawnTarget, spawnDelay);
     };
 
-    gameInterval.current = setTimeout(spawnTarget, 1500);
+    gameInterval.current = setTimeout(spawnTarget, 1200);
   };
 
   const stopGame = () => {
@@ -595,10 +602,11 @@ export default function Home() {
     const animInterval = setInterval(() => {
       setGameTargets(prev => {
         const updated = prev.map(t => {
-          // Base speed increases over time
-          const baseSpeed = 0.5 + Math.min(gameTime.current * 0.015, 0.5);
-          // Fast targets move 1.8x faster, golden move slower
-          const typeMultiplier = t.type === 'fast' ? 1.8 : t.type === 'golden' ? 0.7 : 1;
+          // Base speed increases aggressively over time (0.6 -> 1.4)
+          const baseSpeed = 0.6 + Math.min(gameTime.current * 0.025, 0.8);
+          // Fast targets move 2x faster and scale even more, golden slightly slower
+          const fastBonus = t.type === 'fast' ? Math.min(gameTime.current * 0.01, 0.3) : 0;
+          const typeMultiplier = t.type === 'fast' ? (2.0 + fastBonus) : t.type === 'golden' ? 0.65 : 1;
           const speed = baseSpeed * typeMultiplier;
           return { ...t, y: t.y + speed };
         });
