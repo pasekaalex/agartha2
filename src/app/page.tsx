@@ -1244,7 +1244,7 @@ export default function Home() {
 
       {/* GAME OVERLAY */}
       {gameOpen && (
-        <div className={`fixed inset-0 bg-black z-[100] flex flex-col cursor-none transition-transform duration-75 ${gameShake ? 'translate-x-1' : ''}`}>
+        <div className={`fixed inset-0 bg-black z-[100] flex flex-col transition-transform duration-75 ${gameShake ? 'translate-x-1' : ''} ${gameOver ? 'cursor-auto' : 'cursor-none'}`}>
           {/* Game HUD */}
           <div className="flex justify-between items-center p-4 text-green-400 font-mono">
             <div className="flex items-center gap-6">
@@ -1274,7 +1274,7 @@ export default function Home() {
                   e.stopPropagation();
                   stopGame();
                 }}
-                className="text-zinc-500 hover:text-white text-sm px-3 py-1 border border-zinc-800 hover:border-zinc-600 cursor-pointer"
+                className="text-zinc-500 hover:text-white active:text-white text-sm px-4 py-2 border border-zinc-800 hover:border-zinc-600 active:border-zinc-500 cursor-pointer min-w-[60px]"
               >
                 [exit]
               </button>
@@ -1548,7 +1548,7 @@ export default function Home() {
 
             {/* Game Over Screen */}
             {gameOver && (
-              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 cursor-auto">
                 <div className="text-red-500 text-4xl md:text-6xl font-bold mb-4 glitch" data-text="GAME OVER">
                   GAME OVER
                 </div>
@@ -1565,13 +1565,13 @@ export default function Home() {
                     HIGH SCORE: {gameHighScore}
                   </div>
                 )}
-                <div className="flex gap-4 mt-4">
+                <div className="flex flex-col sm:flex-row gap-4 mt-6">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       startGame();
                     }}
-                    className="text-green-400 hover:text-white text-lg px-6 py-2 border border-green-800 hover:border-green-400 transition-colors cursor-pointer"
+                    className="text-green-400 hover:text-white active:text-white text-lg md:text-xl px-8 py-4 border-2 border-green-800 hover:border-green-400 active:border-green-400 transition-colors cursor-pointer min-w-[140px]"
                   >
                     [RETRY]
                   </button>
@@ -1580,7 +1580,7 @@ export default function Home() {
                       e.stopPropagation();
                       stopGame();
                     }}
-                    className="text-zinc-500 hover:text-white text-lg px-6 py-2 border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                    className="text-zinc-400 hover:text-white active:text-white text-lg md:text-xl px-8 py-4 border-2 border-zinc-700 hover:border-zinc-500 active:border-zinc-500 transition-colors cursor-pointer min-w-[140px]"
                   >
                     [EXIT]
                   </button>
@@ -1601,7 +1601,7 @@ export default function Home() {
         <div
           className={`fixed inset-0 bg-black z-[100] flex flex-col transition-all duration-75 ${
             game2Flash === 'red' ? 'bg-red-900/50' : game2Flash === 'green' ? 'bg-green-900/30' : ''
-          }`}
+          } ${game2Over ? 'cursor-auto' : ''}`}
         >
           {/* Game 2 HUD */}
           <div className="flex justify-between items-center p-4 text-green-400 font-mono">
@@ -1625,7 +1625,7 @@ export default function Home() {
                   e.stopPropagation();
                   stopGame2();
                 }}
-                className="text-zinc-500 hover:text-white text-sm px-3 py-1 border border-zinc-800 hover:border-zinc-600 cursor-pointer"
+                className="text-zinc-500 hover:text-white active:text-white text-sm px-4 py-2 border border-zinc-800 hover:border-zinc-600 active:border-zinc-500 cursor-pointer min-w-[60px]"
               >
                 [exit]
               </button>
@@ -1716,7 +1716,7 @@ export default function Home() {
 
             {/* Game Over Screen */}
             {game2Over && (
-              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 cursor-auto">
                 <div className="text-red-500 text-4xl md:text-6xl font-bold mb-4 glitch" data-text="GAME OVER">
                   GAME OVER
                 </div>
@@ -1733,13 +1733,13 @@ export default function Home() {
                     HIGH SCORE: {game2HighScore}
                   </div>
                 )}
-                <div className="flex gap-4 mt-4">
+                <div className="flex flex-col sm:flex-row gap-4 mt-6">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       startGame2();
                     }}
-                    className="text-green-400 hover:text-white text-lg px-6 py-2 border border-green-800 hover:border-green-400 transition-colors cursor-pointer"
+                    className="text-green-400 hover:text-white active:text-white text-lg md:text-xl px-8 py-4 border-2 border-green-800 hover:border-green-400 active:border-green-400 transition-colors cursor-pointer min-w-[140px]"
                   >
                     [RETRY]
                   </button>
@@ -1748,7 +1748,7 @@ export default function Home() {
                       e.stopPropagation();
                       stopGame2();
                     }}
-                    className="text-zinc-500 hover:text-white text-lg px-6 py-2 border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                    className="text-zinc-400 hover:text-white active:text-white text-lg md:text-xl px-8 py-4 border-2 border-zinc-700 hover:border-zinc-500 active:border-zinc-500 transition-colors cursor-pointer min-w-[140px]"
                   >
                     [EXIT]
                   </button>
