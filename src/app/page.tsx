@@ -730,67 +730,75 @@ export default function Home() {
   }, [game2Open, game2Over]);
 
   // Game 2 movement and collision
+  const game2PlayerXRef = useRef(50);
+
+  useEffect(() => {
+    game2PlayerXRef.current = game2PlayerX;
+  }, [game2PlayerX]);
+
   useEffect(() => {
     if (!game2Open || game2Over) return;
 
     const gameLoop = setInterval(() => {
       // Move player based on keys pressed
       if (keysPressed.current.has('left')) {
-        setGame2PlayerX(x => Math.max(5, x - 2.5));
+        setGame2PlayerX(x => {
+          const newX = Math.max(5, x - 2.5);
+          game2PlayerXRef.current = newX;
+          return newX;
+        });
       }
       if (keysPressed.current.has('right')) {
-        setGame2PlayerX(x => Math.min(95, x + 2.5));
+        setGame2PlayerX(x => {
+          const newX = Math.min(95, x + 2.5);
+          game2PlayerXRef.current = newX;
+          return newX;
+        });
       }
 
       // Move items and check collisions
       setGame2Items(prev => {
         const speed = 0.8 + Math.min(game2Time.current * 0.02, 0.8);
+        const playerX = game2PlayerXRef.current;
+        const collectedIds: number[] = [];
 
-        return prev.map(item => {
+        const updated = prev.map(item => {
           if (item.collected) return item;
 
           const newY = item.y + speed;
 
           // Check collision with player (item at bottom, player area)
-          if (newY >= 85 && newY <= 95) {
-            setGame2PlayerX(playerX => {
-              const distance = Math.abs(item.x - playerX);
-              if (distance < 12) {
-                if (item.type === 'cig') {
-                  // Collected cig!
-                  setGame2Score(s => s + 1);
-                  setGame2Flash('green');
-                  setTimeout(() => setGame2Flash(null), 100);
-                  playHitSound();
-                  item.collected = true;
-                } else {
-                  // Hit bomb!
-                  setGame2Lives(l => {
-                    const newLives = l - 1;
-                    if (newLives <= 0) {
-                      setGame2Over(true);
-                      setGame2HighScore(h => Math.max(h, game2Score));
-                      if (game2Interval.current) clearTimeout(game2Interval.current);
-                    }
-                    return Math.max(0, newLives);
-                  });
-                  setGame2Flash('red');
-                  setTimeout(() => setGame2Flash(null), 150);
-                  playMissSound();
-                  item.collected = true;
-                }
+          if (newY >= 82 && newY <= 98 && !item.collected) {
+            const distance = Math.abs(item.x - playerX);
+            if (distance < 15) {
+              collectedIds.push(item.id);
+              if (item.type === 'cig') {
+                setGame2Score(s => s + 1);
+                playHitSound();
+              } else {
+                setGame2Lives(l => {
+                  const newLives = l - 1;
+                  if (newLives <= 0) {
+                    setGame2Over(true);
+                    if (game2Interval.current) clearTimeout(game2Interval.current);
+                  }
+                  return Math.max(0, newLives);
+                });
+                playMissSound();
               }
-              return playerX;
-            });
+              return { ...item, y: newY, collected: true };
+            }
           }
 
           return { ...item, y: newY };
-        }).filter(item => item.y < 110 && !item.collected);
+        });
+
+        return updated.filter(item => item.y < 110 && !item.collected);
       });
     }, 30);
 
     return () => clearInterval(gameLoop);
-  }, [game2Open, game2Over, game2Score, playHitSound, playMissSound]);
+  }, [game2Open, game2Over, playHitSound, playMissSound]);
 
   const easterEggActive = easterEgg >= 10;
 
@@ -1666,9 +1674,9 @@ export default function Home() {
                     <Image
                       src="/cig.png"
                       alt=""
-                      width={35}
-                      height={35}
-                      className="drop-shadow-[0_0_8px_rgba(0,255,0,0.5)]"
+                      width={52}
+                      height={52}
+                      className="drop-shadow-[0_0_12px_rgba(0,255,0,0.6)]"
                     />
                   </div>
                 ) : (
