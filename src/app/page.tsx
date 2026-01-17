@@ -40,13 +40,27 @@ export default function Home() {
   const [scorePopups, setScorePopups] = useState<{ id: number; x: number; y: number; score: number; color: string }[]>([]);
   const [gameCrosshair, setGameCrosshair] = useState({ x: 50, y: 50 });
   const [chainLightning, setChainLightning] = useState<{ from: { x: number; y: number }; to: { x: number; y: number } } | null>(null);
+  // Game 2 state (collector game)
+  const [game2Open, setGame2Open] = useState(false);
+  const [game2Score, setGame2Score] = useState(0);
+  const [game2Lives, setGame2Lives] = useState(3);
+  const [game2PlayerX, setGame2PlayerX] = useState(50);
+  const [game2Items, setGame2Items] = useState<{ id: number; x: number; y: number; type: 'cig' | 'bomb'; collected: boolean }[]>([]);
+  const [game2Over, setGame2Over] = useState(false);
+  const [game2HighScore, setGame2HighScore] = useState(0);
+  const [game2Flash, setGame2Flash] = useState<'red' | 'green' | null>(null);
+  const [gameMenuOpen, setGameMenuOpen] = useState(false);
   const trailId = useRef(0);
   const particleId = useRef(0);
   const targetId = useRef(0);
   const explosionId = useRef(0);
   const scorePopupId = useRef(0);
+  const game2ItemId = useRef(0);
   const gameInterval = useRef<NodeJS.Timeout | null>(null);
+  const game2Interval = useRef<NodeJS.Timeout | null>(null);
   const gameTime = useRef(0);
+  const game2Time = useRef(0);
+  const keysPressed = useRef<Set<string>>(new Set());
   const audioContext = useRef<AudioContext | null>(null);
   const droneOsc = useRef<OscillatorNode | null>(null);
   const droneGain = useRef<GainNode | null>(null);
@@ -638,6 +652,146 @@ export default function Home() {
     return () => clearInterval(animInterval);
   }, [gameOpen, gameOver, gameScore, playMissSound]);
 
+  // ========== GAME 2: COLLECTOR ==========
+  const startGame2 = () => {
+    setGame2Open(true);
+    setGame2Score(0);
+    setGame2Lives(3);
+    setGame2PlayerX(50);
+    setGame2Items([]);
+    setGame2Over(false);
+    setGame2Flash(null);
+    setGameMenuOpen(false);
+    game2Time.current = 0;
+
+    // Spawn items
+    const spawnItem = () => {
+      if (game2Interval.current) clearTimeout(game2Interval.current);
+
+      game2ItemId.current += 1;
+
+      // Bomb chance increases over time (20% -> 50%)
+      const bombChance = Math.min(0.5, 0.2 + game2Time.current * 0.008);
+      const type: 'cig' | 'bomb' = Math.random() < bombChance ? 'bomb' : 'cig';
+
+      setGame2Items(prev => [...prev, {
+        id: game2ItemId.current,
+        x: Math.random() * 80 + 10,
+        y: -5,
+        type,
+        collected: false,
+      }]);
+
+      game2Time.current += 1;
+      // Spawn faster over time (1200ms -> 400ms)
+      const delay = Math.max(400, 1200 - game2Time.current * 25);
+      game2Interval.current = setTimeout(spawnItem, delay);
+    };
+
+    game2Interval.current = setTimeout(spawnItem, 800);
+  };
+
+  const stopGame2 = () => {
+    setGame2Open(false);
+    setGame2Over(false);
+    if (game2Interval.current) clearTimeout(game2Interval.current);
+  };
+
+  // Game 2 keyboard controls
+  useEffect(() => {
+    if (!game2Open || game2Over) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        keysPressed.current.add('left');
+      }
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        keysPressed.current.add('right');
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        keysPressed.current.delete('left');
+      }
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        keysPressed.current.delete('right');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      keysPressed.current.clear();
+    };
+  }, [game2Open, game2Over]);
+
+  // Game 2 movement and collision
+  useEffect(() => {
+    if (!game2Open || game2Over) return;
+
+    const gameLoop = setInterval(() => {
+      // Move player based on keys pressed
+      if (keysPressed.current.has('left')) {
+        setGame2PlayerX(x => Math.max(5, x - 2.5));
+      }
+      if (keysPressed.current.has('right')) {
+        setGame2PlayerX(x => Math.min(95, x + 2.5));
+      }
+
+      // Move items and check collisions
+      setGame2Items(prev => {
+        const speed = 0.8 + Math.min(game2Time.current * 0.02, 0.8);
+
+        return prev.map(item => {
+          if (item.collected) return item;
+
+          const newY = item.y + speed;
+
+          // Check collision with player (item at bottom, player area)
+          if (newY >= 85 && newY <= 95) {
+            setGame2PlayerX(playerX => {
+              const distance = Math.abs(item.x - playerX);
+              if (distance < 12) {
+                if (item.type === 'cig') {
+                  // Collected cig!
+                  setGame2Score(s => s + 1);
+                  setGame2Flash('green');
+                  setTimeout(() => setGame2Flash(null), 100);
+                  playHitSound();
+                  item.collected = true;
+                } else {
+                  // Hit bomb!
+                  setGame2Lives(l => {
+                    const newLives = l - 1;
+                    if (newLives <= 0) {
+                      setGame2Over(true);
+                      setGame2HighScore(h => Math.max(h, game2Score));
+                      if (game2Interval.current) clearTimeout(game2Interval.current);
+                    }
+                    return Math.max(0, newLives);
+                  });
+                  setGame2Flash('red');
+                  setTimeout(() => setGame2Flash(null), 150);
+                  playMissSound();
+                  item.collected = true;
+                }
+              }
+              return playerX;
+            });
+          }
+
+          return { ...item, y: newY };
+        }).filter(item => item.y < 110 && !item.collected);
+      });
+    }, 30);
+
+    return () => clearInterval(gameLoop);
+  }, [game2Open, game2Over, game2Score, playHitSound, playMissSound]);
+
   const easterEggActive = easterEgg >= 10;
 
   return (
@@ -874,16 +1028,69 @@ export default function Home() {
       )}
 
       {/* GAME BUTTON */}
-      {!gameOpen && !terminalOpen && mounted && (
+      {!gameOpen && !game2Open && !terminalOpen && !gameMenuOpen && mounted && (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            startGame();
+            setGameMenuOpen(true);
           }}
           className="fixed bottom-4 left-1/2 -translate-x-1/2 text-zinc-600 hover:text-white text-xs font-mono p-2 border border-zinc-800 hover:border-zinc-600 transition-colors"
         >
           [play game]
         </button>
+      )}
+
+      {/* GAME SELECTION MENU */}
+      {gameMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/95 z-[100] flex flex-col items-center justify-center"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <h2 className="text-2xl md:text-4xl text-white font-mono mb-8 glitch" data-text="SELECT GAME">
+            SELECT GAME
+          </h2>
+
+          <div className="flex flex-col md:flex-row gap-6">
+            {/* Game 1: Lightning Shooter */}
+            <button
+              onClick={() => {
+                setGameMenuOpen(false);
+                startGame();
+              }}
+              className="group p-6 border border-zinc-800 hover:border-red-500 transition-all bg-zinc-900/50 hover:bg-zinc-900"
+            >
+              <div className="text-red-500 text-lg font-mono mb-2">LIGHTNING STRIKE</div>
+              <div className="text-zinc-500 text-xs mb-4">Shoot falling targets</div>
+              <div className="w-32 h-32 mx-auto mb-4 relative">
+                <Image src="/ep1.jpg" alt="" fill className="object-contain opacity-70 group-hover:opacity-100" unoptimized />
+              </div>
+              <div className="text-zinc-600 text-xs">Click/Tap to shoot</div>
+            </button>
+
+            {/* Game 2: Collector */}
+            <button
+              onClick={() => {
+                setGameMenuOpen(false);
+                startGame2();
+              }}
+              className="group p-6 border border-zinc-800 hover:border-green-500 transition-all bg-zinc-900/50 hover:bg-zinc-900"
+            >
+              <div className="text-green-500 text-lg font-mono mb-2">CIG COLLECTOR</div>
+              <div className="text-zinc-500 text-xs mb-4">Collect cigs, avoid bombs</div>
+              <div className="w-32 h-32 mx-auto mb-4 relative">
+                <Image src="/cig.png" alt="" fill className="object-contain opacity-70 group-hover:opacity-100" />
+              </div>
+              <div className="text-zinc-600 text-xs">Arrow keys / A-D to move</div>
+            </button>
+          </div>
+
+          <button
+            onClick={() => setGameMenuOpen(false)}
+            className="mt-8 text-zinc-600 hover:text-white text-sm font-mono"
+          >
+            [back]
+          </button>
+        </div>
       )}
 
       {/* CLICK COUNTER */}
@@ -1385,6 +1592,174 @@ export default function Home() {
           {/* Game Instructions */}
           <div className="p-4 text-center text-zinc-600 text-xs font-mono border-t border-zinc-900">
             {gameOver ? "CLICK RETRY TO PLAY AGAIN" : `${isMobile ? "TAP" : "CLICK"} TO SHOOT • DON'T LET TARGETS FALL`}
+          </div>
+        </div>
+      )}
+
+      {/* GAME 2 OVERLAY - COLLECTOR */}
+      {game2Open && (
+        <div
+          className={`fixed inset-0 bg-black z-[100] flex flex-col transition-all duration-75 ${
+            game2Flash === 'red' ? 'bg-red-900/50' : game2Flash === 'green' ? 'bg-green-900/30' : ''
+          }`}
+        >
+          {/* Game 2 HUD */}
+          <div className="flex justify-between items-center p-4 text-green-400 font-mono">
+            <div className="text-xl">CIGS: {game2Score}</div>
+            <div className="flex items-center gap-4">
+              {/* Lives */}
+              <div className="flex gap-1">
+                {[...Array(3)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                      i < game2Lives
+                        ? "bg-green-500 shadow-[0_0_8px_rgba(0,255,0,0.8)]"
+                        : "bg-zinc-800"
+                    }`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stopGame2();
+                }}
+                className="text-zinc-500 hover:text-white text-sm px-3 py-1 border border-zinc-800 hover:border-zinc-600 cursor-pointer"
+              >
+                [exit]
+              </button>
+            </div>
+          </div>
+
+          {/* Game 2 Area */}
+          <div
+            className="flex-1 relative overflow-hidden"
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              const rect = e.currentTarget.getBoundingClientRect();
+              const touchX = touch.clientX - rect.left;
+              if (touchX < rect.width / 2) {
+                keysPressed.current.add('left');
+              } else {
+                keysPressed.current.add('right');
+              }
+            }}
+            onTouchEnd={() => {
+              keysPressed.current.clear();
+            }}
+          >
+            {/* Falling Items */}
+            {game2Items.map(item => (
+              <div
+                key={`item2-${item.id}`}
+                className="absolute transition-opacity duration-150"
+                style={{
+                  left: `${item.x}%`,
+                  top: `${item.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                  opacity: item.collected ? 0 : 1,
+                }}
+              >
+                {item.type === 'cig' ? (
+                  <div className="relative">
+                    <Image
+                      src="/cig.png"
+                      alt=""
+                      width={35}
+                      height={35}
+                      className="drop-shadow-[0_0_8px_rgba(0,255,0,0.5)]"
+                    />
+                  </div>
+                ) : (
+                  <div className="relative w-10 h-10 flex items-center justify-center">
+                    <div
+                      className="w-8 h-8 bg-red-600 rounded-full flex items-center justify-center text-white font-bold text-xl animate-pulse"
+                      style={{
+                        boxShadow: '0 0 15px rgba(255,0,0,0.8), 0 0 30px rgba(255,0,0,0.4)',
+                      }}
+                    >
+                      💣
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Player Character */}
+            <div
+              className="absolute bottom-4 transition-all duration-75"
+              style={{
+                left: `${game2PlayerX}%`,
+                transform: 'translateX(-50%)',
+              }}
+            >
+              <div className="relative w-20 h-20 md:w-28 md:h-28">
+                <Image
+                  src="/ep1.jpg"
+                  alt=""
+                  fill
+                  className="object-contain"
+                  style={{
+                    filter: game2Flash === 'red'
+                      ? 'drop-shadow(0 0 20px rgba(255,0,0,0.9)) brightness(1.5)'
+                      : game2Flash === 'green'
+                      ? 'drop-shadow(0 0 15px rgba(0,255,0,0.8))'
+                      : 'drop-shadow(0 0 10px rgba(0,255,0,0.3))',
+                  }}
+                  unoptimized
+                />
+              </div>
+              {/* Collection zone indicator */}
+              <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-16 h-1 bg-green-500/30 rounded-full" />
+            </div>
+
+            {/* Game Over Screen */}
+            {game2Over && (
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10">
+                <div className="text-red-500 text-4xl md:text-6xl font-bold mb-4 glitch" data-text="GAME OVER">
+                  GAME OVER
+                </div>
+                <div className="text-green-400 text-2xl md:text-3xl mb-2">
+                  CIGS COLLECTED: {game2Score}
+                </div>
+                {game2HighScore > 0 && game2Score >= game2HighScore && (
+                  <div className="text-yellow-400 text-lg mb-4 animate-pulse">
+                    NEW HIGH SCORE!
+                  </div>
+                )}
+                {game2HighScore > 0 && game2Score < game2HighScore && (
+                  <div className="text-zinc-500 text-sm mb-4">
+                    HIGH SCORE: {game2HighScore}
+                  </div>
+                )}
+                <div className="flex gap-4 mt-4">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startGame2();
+                    }}
+                    className="text-green-400 hover:text-white text-lg px-6 py-2 border border-green-800 hover:border-green-400 transition-colors cursor-pointer"
+                  >
+                    [RETRY]
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stopGame2();
+                    }}
+                    className="text-zinc-500 hover:text-white text-lg px-6 py-2 border border-zinc-800 hover:border-zinc-600 transition-colors cursor-pointer"
+                  >
+                    [EXIT]
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Game 2 Instructions */}
+          <div className="p-4 text-center text-zinc-600 text-xs font-mono border-t border-zinc-900">
+            {game2Over ? "CLICK RETRY TO PLAY AGAIN" : `${isMobile ? "TOUCH LEFT/RIGHT" : "← → or A/D"} TO MOVE • COLLECT CIGS • AVOID BOMBS`}
           </div>
         </div>
       )}
