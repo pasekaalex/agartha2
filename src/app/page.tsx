@@ -57,11 +57,15 @@ export default function Home() {
   const [game3PlayerX, setGame3PlayerX] = useState(50);
   const [game3Aliens, setGame3Aliens] = useState<{ id: number; x: number; y: number; type: number; alive: boolean; hp: number }[]>([]);
   const [game3Projectiles, setGame3Projectiles] = useState<{ id: number; x: number; y: number }[]>([]);
+  const [game3EnemyProjectiles, setGame3EnemyProjectiles] = useState<{ id: number; x: number; y: number }[]>([]);
   const [game3Over, setGame3Over] = useState(false);
   const [game3HighScore, setGame3HighScore] = useState(0);
   const [game3Level, setGame3Level] = useState(1);
   const [game3AlienDirection, setGame3AlienDirection] = useState<'right' | 'left'>('right');
   const [game3Shooting, setGame3Shooting] = useState(false);
+  const [game3Shake, setGame3Shake] = useState(false);
+  const [game3Particles, setGame3Particles] = useState<{ id: number; x: number; y: number; vx: number; vy: number; color: string }[]>([]);
+  const [game3Stars, setGame3Stars] = useState<{ id: number; x: number; y: number; size: number; speed: number }[]>([]);
   const trailId = useRef(0);
   const particleId = useRef(0);
   const targetId = useRef(0);
@@ -73,6 +77,9 @@ export default function Home() {
   const game3Interval = useRef<NodeJS.Timeout | null>(null);
   const game3AlienId = useRef(0);
   const game3ProjectileId = useRef(0);
+  const game3EnemyProjectileId = useRef(0);
+  const game3ParticleId = useRef(0);
+  const game3StarId = useRef(0);
   const gameTime = useRef(0);
   const game2Time = useRef(0);
   const game3Time = useRef(0);
@@ -823,12 +830,29 @@ export default function Home() {
     setGame3Lives(3);
     setGame3PlayerX(50);
     setGame3Projectiles([]);
+    setGame3EnemyProjectiles([]);
     setGame3Over(false);
     setGame3Level(1);
     setGame3AlienDirection('right');
     setGame3Shooting(false);
+    setGame3Shake(false);
+    setGame3Particles([]);
     setGameMenuOpen(false);
     game3Time.current = 0;
+
+    // Create starfield
+    const stars: { id: number; x: number; y: number; size: number; speed: number }[] = [];
+    for (let i = 0; i < 100; i++) {
+      game3StarId.current += 1;
+      stars.push({
+        id: game3StarId.current,
+        x: Math.random() * 100,
+        y: Math.random() * 100,
+        size: Math.random() * 2 + 1,
+        speed: Math.random() * 0.5 + 0.2,
+      });
+    }
+    setGame3Stars(stars);
 
     // Create initial alien grid
     createAlienWave(1);
@@ -962,10 +986,37 @@ export default function Home() {
               const newHp = alien.hp - 1;
 
               if (newHp <= 0) {
-                // Alien destroyed
+                // Alien destroyed - spawn particles
+                const particleCount = 15;
+                const newParticles: { id: number; x: number; y: number; vx: number; vy: number; color: string }[] = [];
+                const alienColor = alien.type === 2 ? '#ffff00' : alien.type === 1 ? '#ff00ff' : '#00ff00';
+
+                for (let i = 0; i < particleCount; i++) {
+                  game3ParticleId.current += 1;
+                  const angle = (Math.PI * 2 * i) / particleCount;
+                  const speed = 2 + Math.random() * 2;
+                  newParticles.push({
+                    id: game3ParticleId.current,
+                    x: alien.x,
+                    y: alien.y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    color: alienColor,
+                  });
+                }
+                setGame3Particles(prev => [...prev, ...newParticles]);
+                setTimeout(() => {
+                  setGame3Particles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+                }, 800);
+
                 const points = alien.type === 2 ? 30 : alien.type === 1 ? 20 : 10;
                 setGame3Score(s => s + points);
                 playHitSound();
+
+                // Screen shake on alien death
+                setGame3Shake(true);
+                setTimeout(() => setGame3Shake(false), 100);
+
                 return { ...alien, alive: false, hp: 0 };
               } else {
                 // Alien damaged
@@ -981,11 +1032,87 @@ export default function Home() {
         return prevProj.filter(p => !projectilesToRemove.includes(p.id));
       });
 
+      // Move enemy projectiles down and check player collision
+      setGame3EnemyProjectiles(prev => {
+        const updated = prev.map(p => ({ ...p, y: p.y + 2 }));
+
+        // Check collision with player
+        setGame3PlayerX(playerX => {
+          const hitProjectile = updated.find(p => {
+            const distance = Math.sqrt(
+              Math.pow(playerX - p.x, 2) + Math.pow(85 - p.y, 2)
+            );
+            return distance < 12;
+          });
+
+          if (hitProjectile) {
+            // Player hit!
+            setGame3Lives(l => {
+              const newLives = l - 1;
+              if (newLives <= 0) {
+                setGame3Over(true);
+                setGame3HighScore(h => Math.max(h, game3Score));
+              }
+              return Math.max(0, newLives);
+            });
+
+            // Spawn red particles
+            const particleCount = 20;
+            const newParticles: { id: number; x: number; y: number; vx: number; vy: number; color: string }[] = [];
+            for (let i = 0; i < particleCount; i++) {
+              game3ParticleId.current += 1;
+              const angle = (Math.PI * 2 * i) / particleCount;
+              const speed = 2 + Math.random() * 3;
+              newParticles.push({
+                id: game3ParticleId.current,
+                x: playerX,
+                y: 85,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                color: '#ff0000',
+              });
+            }
+            setGame3Particles(prev => [...prev, ...newParticles]);
+            setTimeout(() => {
+              setGame3Particles(prev => prev.filter(p => !newParticles.find(np => np.id === p.id)));
+            }, 800);
+
+            playMissSound();
+            setGame3Shake(true);
+            setTimeout(() => setGame3Shake(false), 200);
+
+            // Remove hit projectile
+            return playerX;
+          }
+
+          return playerX;
+        });
+
+        return updated.filter(p => p.y < 100);
+      });
+
+      // Update particles
+      setGame3Particles(prev =>
+        prev.map(p => ({
+          ...p,
+          x: p.x + p.vx * 0.5,
+          y: p.y + p.vy * 0.5,
+        }))
+      );
+
+      // Update starfield
+      setGame3Stars(prev =>
+        prev.map(star => ({
+          ...star,
+          y: (star.y + star.speed) % 100,
+        }))
+      );
+
       game3Time.current += 1;
     }, 30);
 
     return () => clearInterval(gameLoop);
-  }, [game3Open, game3Over, playHitSound]);
+  }, [game3Open, game3Over, playHitSound, playMissSound, game3Score]);
 
   // Game 3 alien movement
   useEffect(() => {
@@ -1049,6 +1176,46 @@ export default function Home() {
 
     return () => clearInterval(alienInterval);
   }, [game3Open, game3Over, game3AlienDirection, game3Level, game3Score, playMissSound]);
+
+  // Game 3 enemy shooting
+  useEffect(() => {
+    if (!game3Open || game3Over) return;
+
+    const shootInterval = Math.max(800, 2000 - game3Level * 100); // Faster shooting at higher levels
+    const enemyShootInterval = setInterval(() => {
+      setGame3Aliens(aliens => {
+        const aliveAliens = aliens.filter(a => a.alive);
+        if (aliveAliens.length === 0) return aliens;
+
+        // Get bottom-most aliens in each column
+        const columns = new Map<number, typeof aliveAliens[0]>();
+        aliveAliens.forEach(alien => {
+          const col = Math.floor(alien.x / 12.5); // Rough column grouping
+          const current = columns.get(col);
+          if (!current || alien.y > current.y) {
+            columns.set(col, alien);
+          }
+        });
+
+        // Random bottom alien shoots
+        const shooters = Array.from(columns.values());
+        if (shooters.length > 0 && Math.random() < 0.4) {
+          const shooter = shooters[Math.floor(Math.random() * shooters.length)];
+          game3EnemyProjectileId.current += 1;
+          setGame3EnemyProjectiles(prev => [...prev, {
+            id: game3EnemyProjectileId.current,
+            x: shooter.x,
+            y: shooter.y + 5,
+          }]);
+          playGlitchSound();
+        }
+
+        return aliens;
+      });
+    }, shootInterval);
+
+    return () => clearInterval(enemyShootInterval);
+  }, [game3Open, game3Over, game3Level, playGlitchSound]);
 
   const easterEggActive = easterEgg >= 10;
 
@@ -2075,7 +2242,7 @@ export default function Home() {
 
           {/* Game 3 Area */}
           <div
-            className="flex-1 relative overflow-hidden bg-black"
+            className={`flex-1 relative overflow-hidden bg-black transition-transform duration-75 ${game3Shake ? 'translate-x-1' : ''}`}
             onTouchStart={(e) => {
               const touch = e.touches[0];
               const rect = e.currentTarget.getBoundingClientRect();
@@ -2092,6 +2259,60 @@ export default function Home() {
               keysPressed.current.clear();
             }}
           >
+            {/* Starfield Background */}
+            {game3Stars.map(star => (
+              <div
+                key={`star-${star.id}`}
+                className="absolute rounded-full bg-white"
+                style={{
+                  left: `${star.x}%`,
+                  top: `${star.y}%`,
+                  width: `${star.size}px`,
+                  height: `${star.size}px`,
+                  opacity: 0.3 + star.size * 0.2,
+                  boxShadow: `0 0 ${star.size * 2}px rgba(255,255,255,0.5)`,
+                }}
+              />
+            ))}
+
+            {/* Particles */}
+            {game3Particles.map(particle => (
+              <div
+                key={`particle-${particle.id}`}
+                className="absolute rounded-full pointer-events-none"
+                style={{
+                  left: `${particle.x}%`,
+                  top: `${particle.y}%`,
+                  width: '4px',
+                  height: '4px',
+                  backgroundColor: particle.color,
+                  boxShadow: `0 0 8px ${particle.color}, 0 0 16px ${particle.color}`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              />
+            ))}
+
+            {/* Enemy Projectiles */}
+            {game3EnemyProjectiles.map(proj => (
+              <div
+                key={`enemy-proj-${proj.id}`}
+                className="absolute transition-all duration-75"
+                style={{
+                  left: `${proj.x}%`,
+                  top: `${proj.y}%`,
+                  transform: 'translate(-50%, -50%)',
+                }}
+              >
+                <div
+                  className="w-3 h-6 rounded-full animate-pulse"
+                  style={{
+                    background: 'linear-gradient(to bottom, #ff00ff, #ff0000)',
+                    boxShadow: '0 0 10px rgba(255,0,255,0.8), 0 0 20px rgba(255,0,0,0.6)',
+                  }}
+                />
+              </div>
+            ))}
+
             {/* Aliens */}
             {game3Aliens.map(alien => {
               if (!alien.alive) return null;
@@ -2110,14 +2331,33 @@ export default function Home() {
                     opacity: hpAlpha,
                   }}
                 >
-                  <Image
-                    src={alienSrc}
-                    alt=""
-                    width={40}
-                    height={40}
-                    className="drop-shadow-[0_0_8px_rgba(0,255,0,0.6)]"
-                    unoptimized
-                  />
+                  <div className="relative">
+                    <Image
+                      src={alienSrc}
+                      alt=""
+                      width={40}
+                      height={40}
+                      className={`transition-all duration-200 ${alien.hp < (alien.type === 2 ? 3 : alien.type === 1 ? 2 : 1) ? 'brightness-75' : ''}`}
+                      style={{
+                        filter: alien.type === 2
+                          ? 'drop-shadow(0 0 12px rgba(255,255,0,0.9)) drop-shadow(0 0 24px rgba(255,215,0,0.6))'
+                          : alien.type === 1
+                          ? 'drop-shadow(0 0 10px rgba(255,0,255,0.8)) drop-shadow(0 0 20px rgba(255,0,255,0.5))'
+                          : 'drop-shadow(0 0 8px rgba(0,255,0,0.7)) drop-shadow(0 0 16px rgba(0,255,0,0.4))',
+                      }}
+                      unoptimized
+                    />
+                    {/* Glow ring for elite aliens */}
+                    {alien.type === 2 && (
+                      <div
+                        className="absolute inset-0 rounded-full animate-pulse"
+                        style={{
+                          background: 'radial-gradient(circle, rgba(255,255,0,0.3) 0%, transparent 70%)',
+                          transform: 'scale(1.5)',
+                        }}
+                      />
+                    )}
+                  </div>
                   {/* HP indicator for damaged aliens */}
                   {alien.hp < (alien.type === 2 ? 3 : alien.type === 1 ? 2 : 1) && (
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5">
@@ -2146,13 +2386,26 @@ export default function Home() {
                   transform: 'translate(-50%, -50%) rotate(-90deg)',
                 }}
               >
-                <Image
-                  src="/cig.png"
-                  alt=""
-                  width={32}
-                  height={32}
-                  className="drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]"
-                />
+                <div className="relative">
+                  <Image
+                    src="/cig.png"
+                    alt=""
+                    width={32}
+                    height={32}
+                    style={{
+                      filter: 'drop-shadow(0 0 12px rgba(255,0,0,0.9)) drop-shadow(0 0 24px rgba(255,100,0,0.6)) brightness(1.2)',
+                    }}
+                  />
+                  {/* Trail effect */}
+                  <div
+                    className="absolute w-4 h-8 -right-2 top-1/2 -translate-y-1/2"
+                    style={{
+                      background: 'linear-gradient(to right, rgba(255,0,0,0.8), transparent)',
+                      boxShadow: '0 0 10px rgba(255,0,0,0.6)',
+                      borderRadius: '50%',
+                    }}
+                  />
+                </div>
               </div>
             ))}
 
