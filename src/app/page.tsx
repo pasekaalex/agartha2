@@ -1519,7 +1519,7 @@ export default function Home() {
               <div className="text-cyan-500 text-lg font-mono mb-2">ALIEN INVASION</div>
               <div className="text-zinc-500 text-xs mb-4">Defend against invaders</div>
               <div className="w-32 h-32 mx-auto mb-4 relative">
-                <Image src="/ep1.jpg" alt="" fill className="object-contain opacity-70 group-hover:opacity-100" unoptimized />
+                <Image src="/ep2.jpg" alt="" fill className="object-contain opacity-70 group-hover:opacity-100" unoptimized />
               </div>
               <div className="text-zinc-600 text-xs">A-D to move • SPACE to shoot</div>
             </button>
