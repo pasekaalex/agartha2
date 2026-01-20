@@ -50,6 +50,18 @@ export default function Home() {
   const [game2HighScore, setGame2HighScore] = useState(0);
   const [game2Flash, setGame2Flash] = useState<'red' | 'green' | null>(null);
   const [gameMenuOpen, setGameMenuOpen] = useState(false);
+  // Game 3 state (Space Invaders)
+  const [game3Open, setGame3Open] = useState(false);
+  const [game3Score, setGame3Score] = useState(0);
+  const [game3Lives, setGame3Lives] = useState(3);
+  const [game3PlayerX, setGame3PlayerX] = useState(50);
+  const [game3Aliens, setGame3Aliens] = useState<{ id: number; x: number; y: number; type: number; alive: boolean; hp: number }[]>([]);
+  const [game3Projectiles, setGame3Projectiles] = useState<{ id: number; x: number; y: number }[]>([]);
+  const [game3Over, setGame3Over] = useState(false);
+  const [game3HighScore, setGame3HighScore] = useState(0);
+  const [game3Level, setGame3Level] = useState(1);
+  const [game3AlienDirection, setGame3AlienDirection] = useState<'right' | 'left'>('right');
+  const [game3Shooting, setGame3Shooting] = useState(false);
   const trailId = useRef(0);
   const particleId = useRef(0);
   const targetId = useRef(0);
@@ -58,8 +70,12 @@ export default function Home() {
   const game2ItemId = useRef(0);
   const gameInterval = useRef<NodeJS.Timeout | null>(null);
   const game2Interval = useRef<NodeJS.Timeout | null>(null);
+  const game3Interval = useRef<NodeJS.Timeout | null>(null);
+  const game3AlienId = useRef(0);
+  const game3ProjectileId = useRef(0);
   const gameTime = useRef(0);
   const game2Time = useRef(0);
+  const game3Time = useRef(0);
   const keysPressed = useRef<Set<string>>(new Set());
   const audioContext = useRef<AudioContext | null>(null);
   const droneOsc = useRef<OscillatorNode | null>(null);
@@ -800,6 +816,240 @@ export default function Home() {
     return () => clearInterval(gameLoop);
   }, [game2Open, game2Over, playHitSound, playMissSound]);
 
+  // ========== GAME 3: SPACE INVADERS ==========
+  const startGame3 = () => {
+    setGame3Open(true);
+    setGame3Score(0);
+    setGame3Lives(3);
+    setGame3PlayerX(50);
+    setGame3Projectiles([]);
+    setGame3Over(false);
+    setGame3Level(1);
+    setGame3AlienDirection('right');
+    setGame3Shooting(false);
+    setGameMenuOpen(false);
+    game3Time.current = 0;
+
+    // Create initial alien grid
+    createAlienWave(1);
+  };
+
+  const createAlienWave = (level: number) => {
+    const aliens: { id: number; x: number; y: number; type: number; alive: boolean; hp: number }[] = [];
+    const rows = Math.min(3 + Math.floor(level / 3), 5); // 3-5 rows
+    const cols = 8;
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        game3AlienId.current += 1;
+        // Type: 0 = common (green), 1 = medium (magenta), 2 = elite (yellow)
+        const type = row === 0 ? 2 : row === 1 ? 1 : 0;
+        const hp = type === 2 ? 3 : type === 1 ? 2 : 1;
+
+        aliens.push({
+          id: game3AlienId.current,
+          x: 15 + col * 9,
+          y: 10 + row * 12,
+          type,
+          alive: true,
+          hp,
+        });
+      }
+    }
+
+    setGame3Aliens(aliens);
+  };
+
+  const stopGame3 = () => {
+    setGame3Open(false);
+    setGame3Over(false);
+    if (game3Interval.current) {
+      clearInterval(game3Interval.current);
+    }
+  };
+
+  const shootCig = () => {
+    if (game3Over || game3Shooting) return;
+
+    setGame3Shooting(true);
+    playGlitchSound();
+
+    // Create projectile at player position
+    game3ProjectileId.current += 1;
+    setGame3Projectiles(prev => [...prev, {
+      id: game3ProjectileId.current,
+      x: game3PlayerX,
+      y: 85,
+    }]);
+
+    setTimeout(() => setGame3Shooting(false), 200);
+  };
+
+  // Game 3 keyboard controls
+  useEffect(() => {
+    if (!game3Open || game3Over) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        keysPressed.current.add('left');
+      }
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        keysPressed.current.add('right');
+      }
+      if (e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault();
+        shootCig();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        keysPressed.current.delete('left');
+      }
+      if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        keysPressed.current.delete('right');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      keysPressed.current.clear();
+    };
+  }, [game3Open, game3Over, game3PlayerX, game3Shooting, playGlitchSound]);
+
+  // Game 3 main game loop
+  useEffect(() => {
+    if (!game3Open || game3Over) return;
+
+    const gameLoop = setInterval(() => {
+      // Move player
+      if (keysPressed.current.has('left')) {
+        setGame3PlayerX(x => Math.max(5, x - 2));
+      }
+      if (keysPressed.current.has('right')) {
+        setGame3PlayerX(x => Math.min(95, x + 2));
+      }
+
+      // Move projectiles up
+      setGame3Projectiles(prev => {
+        const updated = prev.map(p => ({ ...p, y: p.y - 3 }));
+        return updated.filter(p => p.y > 0);
+      });
+
+      // Check projectile collisions with aliens
+      setGame3Projectiles(prevProj => {
+        let projectilesToRemove: number[] = [];
+
+        setGame3Aliens(prevAliens => {
+          return prevAliens.map(alien => {
+            if (!alien.alive) return alien;
+
+            // Check collision with each projectile
+            const hitProjectile = prevProj.find(p => {
+              if (projectilesToRemove.includes(p.id)) return false;
+              const distance = Math.sqrt(
+                Math.pow(alien.x - p.x, 2) + Math.pow(alien.y - p.y, 2)
+              );
+              return distance < 8;
+            });
+
+            if (hitProjectile) {
+              projectilesToRemove.push(hitProjectile.id);
+              const newHp = alien.hp - 1;
+
+              if (newHp <= 0) {
+                // Alien destroyed
+                const points = alien.type === 2 ? 30 : alien.type === 1 ? 20 : 10;
+                setGame3Score(s => s + points);
+                playHitSound();
+                return { ...alien, alive: false, hp: 0 };
+              } else {
+                // Alien damaged
+                playHitSound();
+                return { ...alien, hp: newHp };
+              }
+            }
+
+            return alien;
+          });
+        });
+
+        return prevProj.filter(p => !projectilesToRemove.includes(p.id));
+      });
+
+      game3Time.current += 1;
+    }, 30);
+
+    return () => clearInterval(gameLoop);
+  }, [game3Open, game3Over, playHitSound]);
+
+  // Game 3 alien movement
+  useEffect(() => {
+    if (!game3Open || game3Over) return;
+
+    const moveSpeed = Math.max(300, 800 - game3Level * 50);
+    const alienInterval = setInterval(() => {
+      setGame3Aliens(prev => {
+        const aliveAliens = prev.filter(a => a.alive);
+        if (aliveAliens.length === 0) {
+          // Level complete! Create new wave
+          setTimeout(() => {
+            setGame3Level(l => {
+              const newLevel = l + 1;
+              createAlienWave(newLevel);
+              return newLevel;
+            });
+          }, 1000);
+          return prev;
+        }
+
+        // Check if aliens should move down and reverse direction
+        const rightmost = Math.max(...aliveAliens.map(a => a.x));
+        const leftmost = Math.min(...aliveAliens.map(a => a.x));
+
+        let shouldMoveDown = false;
+        let newDirection = game3AlienDirection;
+
+        if (game3AlienDirection === 'right' && rightmost >= 92) {
+          shouldMoveDown = true;
+          newDirection = 'left';
+          setGame3AlienDirection('left');
+        } else if (game3AlienDirection === 'left' && leftmost <= 8) {
+          shouldMoveDown = true;
+          newDirection = 'right';
+          setGame3AlienDirection('right');
+        }
+
+        return prev.map(alien => {
+          if (!alien.alive) return alien;
+
+          if (shouldMoveDown) {
+            const newY = alien.y + 5;
+
+            // Game over if aliens reach the bottom
+            if (newY >= 75) {
+              setGame3Over(true);
+              setGame3HighScore(h => Math.max(h, game3Score));
+              playMissSound();
+              return alien;
+            }
+
+            return { ...alien, y: newY };
+          } else {
+            const moveAmount = newDirection === 'right' ? 0.8 : -0.8;
+            return { ...alien, x: alien.x + moveAmount };
+          }
+        });
+      });
+    }, moveSpeed);
+
+    return () => clearInterval(alienInterval);
+  }, [game3Open, game3Over, game3AlienDirection, game3Level, game3Score, playMissSound]);
+
   const easterEggActive = easterEgg >= 10;
 
   return (
@@ -1036,7 +1286,7 @@ export default function Home() {
       )}
 
       {/* GAME BUTTON */}
-      {!gameOpen && !game2Open && !terminalOpen && !gameMenuOpen && mounted && (
+      {!gameOpen && !game2Open && !game3Open && !terminalOpen && !gameMenuOpen && mounted && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -1089,6 +1339,22 @@ export default function Home() {
                 <Image src="/cig.png" alt="" fill className="object-contain opacity-70 group-hover:opacity-100" />
               </div>
               <div className="text-zinc-600 text-xs">Arrow keys / A-D to move</div>
+            </button>
+
+            {/* Game 3: Space Invaders */}
+            <button
+              onClick={() => {
+                setGameMenuOpen(false);
+                startGame3();
+              }}
+              className="group p-6 border border-zinc-800 hover:border-cyan-500 transition-all bg-zinc-900/50 hover:bg-zinc-900"
+            >
+              <div className="text-cyan-500 text-lg font-mono mb-2">ALIEN INVASION</div>
+              <div className="text-zinc-500 text-xs mb-4">Defend against invaders</div>
+              <div className="w-32 h-32 mx-auto mb-4 relative">
+                <Image src="/ep1.jpg" alt="" fill className="object-contain opacity-70 group-hover:opacity-100" unoptimized />
+              </div>
+              <div className="text-zinc-600 text-xs">A-D to move • SPACE to shoot</div>
             </button>
           </div>
 
@@ -1768,6 +2034,209 @@ export default function Home() {
           {/* Game 2 Instructions */}
           <div className="p-4 text-center text-zinc-600 text-xs font-mono border-t border-zinc-900">
             {game2Over ? "CLICK RETRY TO PLAY AGAIN" : `${isMobile ? "TOUCH LEFT/RIGHT" : "← → or A/D"} TO MOVE • COLLECT CIGS • AVOID BOMBS`}
+          </div>
+        </div>
+      )}
+
+      {/* GAME 3 OVERLAY - SPACE INVADERS */}
+      {game3Open && (
+        <div className="fixed inset-0 bg-black z-[100] flex flex-col">
+          {/* Game 3 HUD */}
+          <div className="flex justify-between items-center p-4 text-cyan-400 font-mono">
+            <div className="flex items-center gap-6">
+              <div className="text-xl">SCORE: {game3Score}</div>
+              <div className="text-sm text-zinc-500">LEVEL: {game3Level}</div>
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Lives */}
+              <div className="flex gap-1">
+                {[...Array(3)].map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                      i < game3Lives
+                        ? "bg-cyan-500 shadow-[0_0_8px_rgba(0,255,255,0.8)]"
+                        : "bg-zinc-800"
+                    }`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  stopGame3();
+                }}
+                className="text-zinc-500 hover:text-white active:text-white text-sm px-4 py-2 border border-zinc-800 hover:border-zinc-600 active:border-zinc-500 cursor-pointer min-w-[60px]"
+              >
+                [exit]
+              </button>
+            </div>
+          </div>
+
+          {/* Game 3 Area */}
+          <div
+            className="flex-1 relative overflow-hidden bg-black"
+            onTouchStart={(e) => {
+              const touch = e.touches[0];
+              const rect = e.currentTarget.getBoundingClientRect();
+              const touchX = touch.clientX - rect.left;
+              if (touchX < rect.width / 3) {
+                keysPressed.current.add('left');
+              } else if (touchX > (rect.width * 2) / 3) {
+                keysPressed.current.add('right');
+              } else {
+                shootCig();
+              }
+            }}
+            onTouchEnd={() => {
+              keysPressed.current.clear();
+            }}
+          >
+            {/* Aliens */}
+            {game3Aliens.map(alien => {
+              if (!alien.alive) return null;
+
+              const alienSrc = alien.type === 2 ? '/alien3.svg' : alien.type === 1 ? '/alien2.svg' : '/alien1.svg';
+              const hpAlpha = alien.hp / (alien.type === 2 ? 3 : alien.type === 1 ? 2 : 1);
+
+              return (
+                <div
+                  key={`alien-${alien.id}`}
+                  className="absolute transition-all duration-100"
+                  style={{
+                    left: `${alien.x}%`,
+                    top: `${alien.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                    opacity: hpAlpha,
+                  }}
+                >
+                  <Image
+                    src={alienSrc}
+                    alt=""
+                    width={40}
+                    height={40}
+                    className="drop-shadow-[0_0_8px_rgba(0,255,0,0.6)]"
+                    unoptimized
+                  />
+                  {/* HP indicator for damaged aliens */}
+                  {alien.hp < (alien.type === 2 ? 3 : alien.type === 1 ? 2 : 1) && (
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-0.5">
+                      {[...Array(alien.type === 2 ? 3 : alien.type === 1 ? 2 : 1)].map((_, i) => (
+                        <div
+                          key={i}
+                          className={`w-1 h-1 rounded-full ${
+                            i < alien.hp ? 'bg-red-500' : 'bg-zinc-700'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Projectiles (Cigs) */}
+            {game3Projectiles.map(proj => (
+              <div
+                key={`proj-${proj.id}`}
+                className="absolute transition-all duration-75"
+                style={{
+                  left: `${proj.x}%`,
+                  top: `${proj.y}%`,
+                  transform: 'translate(-50%, -50%) rotate(-90deg)',
+                }}
+              >
+                <Image
+                  src="/cig.png"
+                  alt=""
+                  width={32}
+                  height={32}
+                  className="drop-shadow-[0_0_10px_rgba(255,0,0,0.8)]"
+                />
+              </div>
+            ))}
+
+            {/* Player Character */}
+            <div
+              className="absolute bottom-8 transition-all duration-75"
+              style={{
+                left: `${game3PlayerX}%`,
+                transform: 'translateX(-50%)',
+              }}
+            >
+              <div className={`relative w-20 h-20 md:w-24 md:h-24 transition-all duration-100 ${game3Shooting ? 'scale-110' : ''}`}>
+                <Image
+                  src={game3Shooting ? "/ep2.jpg" : "/ep1.jpg"}
+                  alt=""
+                  fill
+                  className={`object-contain ${game3Shooting ? "drop-shadow-[0_0_20px_rgba(255,0,0,0.8)]" : ""}`}
+                  unoptimized
+                />
+              </div>
+            </div>
+
+            {/* Shooting Flash Effect */}
+            {game3Shooting && (
+              <div className="absolute inset-0 pointer-events-none">
+                <div
+                  className="absolute inset-0"
+                  style={{
+                    background: `radial-gradient(circle at 50% 85%, rgba(255,0,0,0.3) 0%, transparent 40%)`,
+                    animation: "flash 0.2s ease-out",
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Game Over Screen */}
+            {game3Over && (
+              <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center z-10 cursor-auto">
+                <div className="text-red-500 text-4xl md:text-6xl font-bold mb-4 glitch" data-text="GAME OVER">
+                  GAME OVER
+                </div>
+                <div className="text-cyan-400 text-2xl md:text-3xl mb-2">
+                  SCORE: {game3Score}
+                </div>
+                <div className="text-zinc-500 text-lg mb-2">
+                  LEVEL REACHED: {game3Level}
+                </div>
+                {game3HighScore > 0 && game3Score >= game3HighScore && (
+                  <div className="text-yellow-400 text-lg mb-4 animate-pulse">
+                    NEW HIGH SCORE!
+                  </div>
+                )}
+                {game3HighScore > 0 && game3Score < game3HighScore && (
+                  <div className="text-zinc-500 text-sm mb-4">
+                    HIGH SCORE: {game3HighScore}
+                  </div>
+                )}
+                <div className="flex flex-col sm:flex-row gap-4 mt-6">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      startGame3();
+                    }}
+                    className="text-cyan-400 hover:text-white active:text-white text-lg md:text-xl px-8 py-4 border-2 border-cyan-800 hover:border-cyan-400 active:border-cyan-400 transition-colors cursor-pointer min-w-[140px]"
+                  >
+                    [RETRY]
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      stopGame3();
+                    }}
+                    className="text-zinc-400 hover:text-white active:text-white text-lg md:text-xl px-8 py-4 border-2 border-zinc-700 hover:border-zinc-500 active:border-zinc-500 transition-colors cursor-pointer min-w-[140px]"
+                  >
+                    [EXIT]
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Game 3 Instructions */}
+          <div className="p-4 text-center text-zinc-600 text-xs font-mono border-t border-zinc-900">
+            {game3Over ? "CLICK RETRY TO PLAY AGAIN" : `${isMobile ? "TOUCH TO MOVE & SHOOT" : "A/D or ← → TO MOVE • SPACE TO SHOOT"}`}
           </div>
         </div>
       )}
